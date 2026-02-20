@@ -5,7 +5,6 @@ import os from 'os';
 export function getCacheDir(): string {
   const cacheBase = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
   const dir = path.join(cacheBase, 'hatebucli');
-  console.error(`Debug: cacheDir = ${dir}`);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }

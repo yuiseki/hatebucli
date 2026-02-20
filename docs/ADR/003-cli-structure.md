@@ -44,6 +44,17 @@ Document the current command set exactly as implemented.
 - Expects legacy layout under `<dir>/YYYY/MM/*.json`
 - Copies files into current cache directory.
 
+### 6. `search` Command
+- `hatebu search <query>`
+- Options:
+  - `-f, --field <all|title|url>` (default: `all`)
+  - `-d, --date <yyyy-mm-dd>`
+  - `-l, --limit <number>` (default: `10`)
+  - `-j, --json`
+- Behavior:
+  - Searches local cache only.
+  - Builds/refreshes per-day local index under `index/v1` on demand.
+
 ## Consequences
 - Documentation now matches actual runtime behavior.
 - Removed references to non-existent commands and unrelated tools.
