@@ -30,21 +30,7 @@ Document the current command set exactly as implemented.
   - Today: fetch fresh data from API.
   - Non-today: read from local cache.
 
-### 4. `sync` Command
-- `hatebu sync`
-- Options:
-  - `--days <number>` (default: `1`)
-  - `-d, --date <yyyy-mm-dd>`
-- Behavior:
-  - `--date`: fetch that date and save cache.
-  - no `--date`: fetch yesterday..N days ago and save each day.
-
-### 5. `import` Command
-- `hatebu import <dir>`
-- Expects legacy layout under `<dir>/YYYY/MM/*.json`
-- Copies files into current cache directory.
-
-### 6. `search` Command
+### 4. `search` Command
 - `hatebu search <query>`
 - Options:
   - `-f, --field <all|title|url>` (default: `all`)
@@ -55,7 +41,7 @@ Document the current command set exactly as implemented.
   - Searches local cache only.
   - Builds/refreshes per-day local index under `index/v1` on demand.
 
-### 7. `domains` Command
+### 5. `domains` Command
 - `hatebu domains`
 - Default range:
   - from 8 days ago to yesterday
@@ -68,7 +54,7 @@ Document the current command set exactly as implemented.
   - Aggregates domain counts from cached bookmark JSON.
   - If range includes today, today is fetched from API.
 
-### 8. `tags` Command
+### 6. `tags` Command
 - `hatebu tags` (alias: `hatebu tag`)
 - Default range:
   - from 8 days ago to yesterday
@@ -82,7 +68,7 @@ Document the current command set exactly as implemented.
   - Tag sources are `tags`/`categories` fields and leading `[tag]` blocks in bookmark comment.
   - If range includes today, today is fetched from API.
 
-### 9. `words` Command
+### 7. `words` Command
 - `hatebu words`
 - Default range:
   - from 8 days ago to yesterday
@@ -94,9 +80,10 @@ Document the current command set exactly as implemented.
 - Behavior:
   - Tokenizes bookmark titles with local Lindera IPADIC (`lindera-wasm-nodejs-ipadic`).
   - Aggregates tokenized word counts from cached bookmark JSON.
+  - Counts each word at most once per bookmark.
   - If range includes today, today is fetched from API.
 
-### 10. `stats` Command
+### 8. `stats` Command
 - `hatebu stats`
 - Default range:
   - from 8 days ago to yesterday
@@ -110,6 +97,20 @@ Document the current command set exactly as implemented.
   - Aggregates bookmark time (hour/weekday), domain ranking, and tag ranking from cache.
   - If range includes today, today is fetched from API.
   - Shows missing cache dates when some days are not cached.
+
+### 9. `sync` Command
+- `hatebu sync`
+- Options:
+  - `--days <number>` (default: `1`)
+  - `-d, --date <yyyy-mm-dd>`
+- Behavior:
+  - `--date`: fetch that date and save cache.
+  - no `--date`: fetch yesterday..N days ago and save each day.
+
+### 10. `import` Command
+- `hatebu import <dir>`
+- Expects legacy layout under `<dir>/YYYY/MM/*.json`
+- Copies files into current cache directory.
 
 ## Consequences
 - Documentation now matches actual runtime behavior.
