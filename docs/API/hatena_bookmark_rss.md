@@ -43,7 +43,8 @@ Each RSS item is mapped into:
   "title": "string",
   "link": "string",
   "date": "string",
-  "description": "string"
+  "description": "string",
+  "tags": ["string"]
 }
 ```
 
@@ -53,6 +54,7 @@ Field mapping in implementation:
 - `link`: `item.link || ''`
 - `date`: `item.isoDate || item.dcDate || ''`
 - `description`: `item.contentSnippet || item.description || ''`
+- `tags`: merged from `dc:subject` and `item.categories` (empty array when missing)
 
 ## Error Handling
 

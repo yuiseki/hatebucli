@@ -84,11 +84,25 @@ type DomainRank = {
   count: number;
 };
 
+type TagRank = {
+  tag: string;
+  count: number;
+};
+
 type DomainsSummary = {
   range: ParsedDateOption;
   bookmarkCount: number;
   bookmarkCountWithDomain: number;
   ranking: DomainRank[];
+  missingDates: string[];
+};
+
+type TagsSummary = {
+  range: ParsedDateOption;
+  bookmarkCount: number;
+  bookmarkCountWithTags: number;
+  totalTagAssignments: number;
+  ranking: TagRank[];
   missingDates: string[];
 };
 
@@ -195,7 +209,7 @@ function buildRecentWeekRangeUntilYesterday(): ParsedDateOption {
   };
 }
 
-function resolveDomainsRangeOption(options: { date?: string; today?: boolean }): ParsedDateOption {
+function resolveRankingRangeOption(options: { date?: string; today?: boolean }): ParsedDateOption {
   if (options.today && options.date) {
     console.error('Error: --today and --date cannot be used together.');
     process.exit(1);
@@ -235,6 +249,53 @@ function extractDomain(value?: string): string | undefined {
       return undefined;
     }
   }
+}
+
+function normalizeTagText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.normalize('NFKC').trim();
+  if (normalized.length === 0) return undefined;
+  const stripped = normalized.replace(/^[#＃]+/, '').trim();
+  return stripped.length > 0 ? stripped : undefined;
+}
+
+function extractTagsFromDescription(description: unknown): string[] {
+  if (typeof description !== 'string') return [];
+  let cursor = description.normalize('NFKC');
+  const tags: string[] = [];
+
+  while (cursor.startsWith('[')) {
+    const match = cursor.match(/^\[([^\[\]]+)\]/);
+    if (!match) break;
+    tags.push(match[1]);
+    cursor = cursor.slice(match[0].length);
+  }
+
+  return tags;
+}
+
+function extractBookmarkTags(bookmark: any): string[] {
+  const rawTags: unknown[] = [];
+
+  if (Array.isArray(bookmark?.tags)) {
+    rawTags.push(...bookmark.tags);
+  }
+  if (Array.isArray(bookmark?.categories)) {
+    rawTags.push(...bookmark.categories);
+  }
+  rawTags.push(...extractTagsFromDescription(bookmark?.description));
+
+  const unique = new Map<string, string>();
+  for (const rawTag of rawTags) {
+    const tag = normalizeTagText(rawTag);
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (!unique.has(key)) {
+      unique.set(key, tag);
+    }
+  }
+
+  return Array.from(unique.values());
 }
 
 async function buildDomainsSummary(range: ParsedDateOption): Promise<DomainsSummary> {
@@ -280,6 +341,60 @@ async function buildDomainsSummary(range: ParsedDateOption): Promise<DomainsSumm
     range,
     bookmarkCount,
     bookmarkCountWithDomain,
+    ranking,
+    missingDates,
+  };
+}
+
+async function buildTagsSummary(range: ParsedDateOption): Promise<TagsSummary> {
+  const dateList = getDateListInRange(range.start, range.end);
+  const missingDates: string[] = [];
+  const counts = new Map<string, number>();
+  let bookmarkCount = 0;
+  let bookmarkCountWithTags = 0;
+  let totalTagAssignments = 0;
+  let user: string | null = null;
+
+  for (const date of dateList) {
+    let bookmarks: any[] | null = null;
+    if (isToday(date)) {
+      if (!user) {
+        user = await ensureHatenaUser();
+      }
+      bookmarks = await fetchBookmarksByDate(user, date);
+    } else {
+      bookmarks = loadCache(date);
+      if (!bookmarks) {
+        missingDates.push(formatDateYmd(date));
+        continue;
+      }
+    }
+
+    for (const bookmark of bookmarks) {
+      bookmarkCount += 1;
+      const tags = extractBookmarkTags(bookmark);
+      if (tags.length === 0) continue;
+
+      bookmarkCountWithTags += 1;
+      totalTagAssignments += tags.length;
+      for (const tag of tags) {
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      }
+    }
+  }
+
+  const ranking: TagRank[] = Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.tag.localeCompare(b.tag, 'ja');
+    });
+
+  return {
+    range,
+    bookmarkCount,
+    bookmarkCountWithTags,
+    totalTagAssignments,
     ranking,
     missingDates,
   };
@@ -379,7 +494,7 @@ program
   .option('-j, --json', 'output as JSON')
   .action(async (options) => {
     try {
-      const range = resolveDomainsRangeOption(options);
+      const range = resolveRankingRangeOption(options);
       const requestedLimit = parsePositiveIntegerOption(options.limit, '--limit');
       const limit = Math.min(requestedLimit, 10);
       const summary = await buildDomainsSummary(range);
@@ -415,6 +530,58 @@ program
       }
     } catch (error: any) {
       console.error('Error ranking domains:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('tags')
+  .alias('tag')
+  .description('Rank bookmark tags for a specific date')
+  .option('--date <yyyy|yyyy-mm|yyyy-mm-dd>', 'target date/range')
+  .option('--today', 'target today only (overrides default weekly range)')
+  .option('-l, --limit <number>', 'maximum ranking rows (max: 10)', '10')
+  .option('-j, --json', 'output as JSON')
+  .action(async (options) => {
+    try {
+      const range = resolveRankingRangeOption(options);
+      const requestedLimit = parsePositiveIntegerOption(options.limit, '--limit');
+      const limit = Math.min(requestedLimit, 10);
+      const summary = await buildTagsSummary(range);
+      const displayedRanking = summary.ranking.slice(0, limit);
+
+      if (options.json) {
+        console.log(JSON.stringify({
+          date: summary.range.dateKey,
+          bookmark_count: summary.bookmarkCount,
+          bookmark_count_with_tags: summary.bookmarkCountWithTags,
+          total_tag_assignments: summary.totalTagAssignments,
+          total_tags: summary.ranking.length,
+          ranking: displayedRanking,
+          missing_dates: summary.missingDates,
+        }, null, 2));
+        return;
+      }
+
+      if (summary.ranking.length === 0) {
+        console.log(`No tag data found for ${summary.range.dateKey}.`);
+        if (summary.missingDates.length > 0) {
+          console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+        }
+        return;
+      }
+
+      console.log(`Tags on ${summary.range.dateKey}`);
+      displayedRanking.forEach((item, index) => {
+        console.log(`${index + 1}. #${item.tag}: ${item.count}`);
+      });
+      console.log(`Total bookmarks with tags: ${summary.bookmarkCountWithTags}`);
+      console.log(`Total tag assignments: ${summary.totalTagAssignments}`);
+      if (summary.missingDates.length > 0) {
+        console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+      }
+    } catch (error: any) {
+      console.error('Error ranking tags:', error.message);
       process.exit(1);
     }
   });

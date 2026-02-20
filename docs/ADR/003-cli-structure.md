@@ -68,6 +68,20 @@ Document the current command set exactly as implemented.
   - Aggregates domain counts from cached bookmark JSON.
   - If range includes today, today is fetched from API.
 
+### 8. `tags` Command
+- `hatebu tags` (alias: `hatebu tag`)
+- Default range:
+  - from 8 days ago to yesterday
+- Options:
+  - `--date <yyyy|yyyy-mm|yyyy-mm-dd>`
+  - `--today` (target today only; mutually exclusive with `--date`)
+  - `-l, --limit <number>` (default: `10`, max: `10`)
+  - `-j, --json`
+- Behavior:
+  - Aggregates tag counts from cached bookmark JSON.
+  - Tag sources are `tags`/`categories` fields and leading `[tag]` blocks in bookmark comment.
+  - If range includes today, today is fetched from API.
+
 ## Consequences
 - Documentation now matches actual runtime behavior.
 - Removed references to non-existent commands and unrelated tools.
