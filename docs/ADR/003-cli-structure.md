@@ -55,6 +55,19 @@ Document the current command set exactly as implemented.
   - Searches local cache only.
   - Builds/refreshes per-day local index under `index/v1` on demand.
 
+### 7. `domains` Command
+- `hatebu domains`
+- Default range:
+  - from 8 days ago to yesterday
+- Options:
+  - `--date <yyyy|yyyy-mm|yyyy-mm-dd>`
+  - `--today` (target today only; mutually exclusive with `--date`)
+  - `-l, --limit <number>` (default: `10`, max: `10`)
+  - `-j, --json`
+- Behavior:
+  - Aggregates domain counts from cached bookmark JSON.
+  - If range includes today, today is fetched from API.
+
 ## Consequences
 - Documentation now matches actual runtime behavior.
 - Removed references to non-existent commands and unrelated tools.

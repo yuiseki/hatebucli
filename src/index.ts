@@ -72,6 +72,219 @@ function parseSearchField(value: string): SearchField {
   process.exit(1);
 }
 
+type ParsedDateOption = {
+  granularity: 'day' | 'month' | 'year';
+  dateKey: string;
+  start: Date;
+  end: Date;
+};
+
+type DomainRank = {
+  domain: string;
+  count: number;
+};
+
+type DomainsSummary = {
+  range: ParsedDateOption;
+  bookmarkCount: number;
+  bookmarkCountWithDomain: number;
+  ranking: DomainRank[];
+  missingDates: string[];
+};
+
+function parseDateOption(value?: string): ParsedDateOption {
+  if (!value) {
+    const today = new Date();
+    const year = String(today.getFullYear());
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return {
+      granularity: 'day',
+      dateKey: `${year}-${month}-${day}`,
+      start: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0),
+      end: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999),
+    };
+  }
+
+  if (/^\d{4}$/.test(value)) {
+    const year = Number(value);
+    return {
+      granularity: 'year',
+      dateKey: value,
+      start: new Date(year, 0, 1, 0, 0, 0, 0),
+      end: new Date(year, 11, 31, 23, 59, 59, 999),
+    };
+  }
+
+  if (/^\d{4}-\d{2}$/.test(value)) {
+    const [yearText, monthText] = value.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const probe = new Date(year, month - 1, 1);
+    if (probe.getFullYear() !== year || probe.getMonth() !== month - 1) {
+      console.error('Error: --date month is invalid.');
+      process.exit(1);
+    }
+    return {
+      granularity: 'month',
+      dateKey: value,
+      start: new Date(year, month - 1, 1, 0, 0, 0, 0),
+      end: new Date(year, month, 0, 23, 59, 59, 999),
+    };
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [yearText, monthText, dayText] = value.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const probe = new Date(year, month - 1, day);
+    if (
+      probe.getFullYear() !== year ||
+      probe.getMonth() !== month - 1 ||
+      probe.getDate() !== day
+    ) {
+      console.error('Error: --date day is invalid.');
+      process.exit(1);
+    }
+    return {
+      granularity: 'day',
+      dateKey: value,
+      start: new Date(year, month - 1, day, 0, 0, 0, 0),
+      end: new Date(year, month - 1, day, 23, 59, 59, 999),
+    };
+  }
+
+  console.error('Error: --date format must be yyyy or yyyy-mm or yyyy-mm-dd.');
+  process.exit(1);
+}
+
+function formatDateYmd(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildRecentWeekRangeUntilYesterday(): ParsedDateOption {
+  const today = new Date();
+  const end = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - 1,
+    23,
+    59,
+    59,
+    999,
+  );
+  const start = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - 8,
+    0,
+    0,
+    0,
+    0,
+  );
+
+  return {
+    granularity: 'day',
+    dateKey: `${formatDateYmd(start)}..${formatDateYmd(end)}`,
+    start,
+    end,
+  };
+}
+
+function resolveDomainsRangeOption(options: { date?: string; today?: boolean }): ParsedDateOption {
+  if (options.today && options.date) {
+    console.error('Error: --today and --date cannot be used together.');
+    process.exit(1);
+  }
+  if (options.today) {
+    return parseDateOption();
+  }
+  if (options.date) {
+    return parseDateOption(options.date);
+  }
+  return buildRecentWeekRangeUntilYesterday();
+}
+
+function getDateListInRange(start: Date, end: Date): Date[] {
+  const dates: Date[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+  const last = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0);
+
+  while (cursor.getTime() <= last.getTime()) {
+    dates.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
+
+function extractDomain(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.hostname.replace(/^www\./, '').toLowerCase();
+  } catch (_error) {
+    try {
+      const url = new URL(`https://${value}`);
+      return url.hostname.replace(/^www\./, '').toLowerCase();
+    } catch (_secondError) {
+      return undefined;
+    }
+  }
+}
+
+async function buildDomainsSummary(range: ParsedDateOption): Promise<DomainsSummary> {
+  const dateList = getDateListInRange(range.start, range.end);
+  const missingDates: string[] = [];
+  const counts = new Map<string, number>();
+  let bookmarkCount = 0;
+  let bookmarkCountWithDomain = 0;
+  let user: string | null = null;
+
+  for (const date of dateList) {
+    let bookmarks: any[] | null = null;
+    if (isToday(date)) {
+      if (!user) {
+        user = await ensureHatenaUser();
+      }
+      bookmarks = await fetchBookmarksByDate(user, date);
+    } else {
+      bookmarks = loadCache(date);
+      if (!bookmarks) {
+        missingDates.push(formatDateYmd(date));
+        continue;
+      }
+    }
+
+    for (const bookmark of bookmarks) {
+      bookmarkCount += 1;
+      const domain = extractDomain(bookmark?.link);
+      if (!domain) continue;
+      bookmarkCountWithDomain += 1;
+      counts.set(domain, (counts.get(domain) || 0) + 1);
+    }
+  }
+
+  const ranking: DomainRank[] = Array.from(counts.entries())
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.domain.localeCompare(b.domain);
+    });
+
+  return {
+    range,
+    bookmarkCount,
+    bookmarkCountWithDomain,
+    ranking,
+    missingDates,
+  };
+}
+
 program
   .command('list')
   .alias('ls')
@@ -155,6 +368,55 @@ program
       console.log(`${index + 1}. [${result.dateKey}] ${result.title}`);
       console.log(`   ${result.link}`);
     });
+  });
+
+program
+  .command('domains')
+  .description('Rank bookmarked URL domains for a specific date')
+  .option('--date <yyyy|yyyy-mm|yyyy-mm-dd>', 'target date/range')
+  .option('--today', 'target today only (overrides default weekly range)')
+  .option('-l, --limit <number>', 'maximum ranking rows (max: 10)', '10')
+  .option('-j, --json', 'output as JSON')
+  .action(async (options) => {
+    try {
+      const range = resolveDomainsRangeOption(options);
+      const requestedLimit = parsePositiveIntegerOption(options.limit, '--limit');
+      const limit = Math.min(requestedLimit, 10);
+      const summary = await buildDomainsSummary(range);
+      const displayedRanking = summary.ranking.slice(0, limit);
+
+      if (options.json) {
+        console.log(JSON.stringify({
+          date: summary.range.dateKey,
+          bookmark_count: summary.bookmarkCount,
+          domain_bookmark_count: summary.bookmarkCountWithDomain,
+          total_domains: summary.ranking.length,
+          ranking: displayedRanking,
+          missing_dates: summary.missingDates,
+        }, null, 2));
+        return;
+      }
+
+      if (summary.ranking.length === 0) {
+        console.log(`No domain data found for ${summary.range.dateKey}.`);
+        if (summary.missingDates.length > 0) {
+          console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+        }
+        return;
+      }
+
+      console.log(`Domains on ${summary.range.dateKey}`);
+      displayedRanking.forEach((item, index) => {
+        console.log(`${index + 1}. ${item.domain}: ${item.count}`);
+      });
+      console.log(`Total bookmarks with domain: ${summary.bookmarkCountWithDomain}`);
+      if (summary.missingDates.length > 0) {
+        console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+      }
+    } catch (error: any) {
+      console.error('Error ranking domains:', error.message);
+      process.exit(1);
+    }
   });
 
 program
