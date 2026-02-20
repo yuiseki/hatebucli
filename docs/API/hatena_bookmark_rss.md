@@ -1,31 +1,60 @@
-# Hatena Bookmark RSS API
+# Hatena Bookmark RSS API (as used by hatebucli)
 
-Hatena Bookmark provides an RSS feed for each user. This CLI uses the date-specific RSS feed to fetch historical bookmarks.
+`hatebucli` fetches daily bookmarks from Hatena RSS using `rss-parser`.
 
 ## Endpoint
 
-`GET https://b.hatena.ne.jp/{user}/bookmark.rss`
+Default base URL:
 
-### Query Parameters
+`https://b.hatena.ne.jp/{user}/bookmark.rss`
 
-| Parameter | Type | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `date` | `string` | Target date in `YYYYMMDD` format. | `20260219` |
+Request URL format:
 
-## Response Format
+`GET {base_url}?date=YYYYMMDD`
 
-The response is in RSS 1.0 (XML) format.
+Example:
 
-### Important Fields
+`GET https://b.hatena.ne.jp/example/bookmark.rss?date=20260219`
 
-- `channel`: Feed metadata.
-- `item`: Individual bookmark entry.
-  - `title`: Page title.
-  - `link`: Original URL.
-  - `dc:date`: Bookmark date (ISO 8601).
-  - `description`: User's comment (if any).
+## Base URL Override
 
-## Usage Notes
+The base URL can be overridden with environment variable:
 
-- The API is public and does not require authentication for public bookmarks.
-- Rate limiting is not officially documented, but a delay of 0.5s between requests is recommended.
+- `HATENA_BOOKMARK_RSS_URL`
+
+The value must include `%s` as a username placeholder.
+
+Example:
+
+`HATENA_BOOKMARK_RSS_URL=https://b.hatena.ne.jp/%s/bookmark.rss`
+
+## Query Parameter
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `date` | string | Target date in `YYYYMMDD` |
+
+## Parsed Output Schema
+
+Each RSS item is mapped into:
+
+```json
+{
+  "title": "string",
+  "link": "string",
+  "date": "string",
+  "description": "string"
+}
+```
+
+Field mapping in implementation:
+
+- `title`: `item.title || ''`
+- `link`: `item.link || ''`
+- `date`: `item.isoDate || item.dcDate || ''`
+- `description`: `item.contentSnippet || item.description || ''`
+
+## Error Handling
+
+- On fetch/parse failure, the CLI logs an error and returns an empty array.
+- Public bookmark RSS does not require authentication in this implementation.

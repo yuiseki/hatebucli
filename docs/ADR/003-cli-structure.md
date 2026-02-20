@@ -1,34 +1,49 @@
-# ADR 003: CLI Command Structure and Interface
+# ADR 003: CLI Structure and Commands
 
 ## Status
-Proposed
+Accepted
 
 ## Context
-The user needs a consistent CLI experience across `hatebucli` and `gyazocli`, similar to the sub-command structure of `gogcli`.
+The implemented CLI is a single binary (`hatebu`) built with `commander`. The previous draft listed commands and flags that do not exist in the codebase.
 
 ## Decision
-Both tools will implement a nested sub-command structure with standard global flags.
+Document the current command set exactly as implemented.
 
-### 1. Global Flags
-Common flags for all commands:
-- `-j, --json`: Output raw data in JSON format (ideal for piped commands).
-- `-p, --plain`: Output stable, parseable text (TSV).
-- `-v, --verbose`: Enable verbose logging.
-- `--no-cache`: Force fetch from the API and update the local cache.
+### 1. Root Command
+- Binary name: `hatebu`
+- Version command: `hatebu --version`
 
-### 2. Hatebucli Command Structure
-- **`bookmarks list [--date YYYY-MM-DD] [--limit N]`**: List bookmarks for a specific day or recently.
-- **`bookmarks sync [--days N]`**: Fetch and cache bookmarks from the RSS feed for the last N days.
-- **`bookmarks summary [--date YYYY-MM-DD]`**: Generate a Markdown summary for the target date (using AI integration).
-- **`stats [--month YYYY-MM]`**: Output basic statistics (most bookmarked domains, tags, etc.).
+### 2. `config` Subcommands
+- `hatebu config set <key> <value>`
+  - Supported key: `username`
+  - Writes to `~/.config/hatebu/credentials.json`
+- `hatebu config get <key>`
+  - Supported key: `username`
+  - Prints value or exits with error if not found
 
-### 3. Gyazocli Command Structure
-- **`images list [--date YYYY-MM-DD] [--limit N]`**: List images based on creation date or recent captures.
-- **`images get <image_id>`**: Display detailed metadata, including OCR and object recognition results.
-- **`images search <query> [--limit N]`**: Perform a full-text or date-based search via the Gyazo API.
-- **`images sync [--max-pages N]`**: Fetch recent images and enrich with details (OCR) to populate the local cache.
+### 3. `list` Command
+- `hatebu list` (alias: `hatebu ls`)
+- Options:
+  - `-d, --date <yyyy-mm-dd>`
+  - `-j, --json`
+- Behavior:
+  - Today: fetch fresh data from API.
+  - Non-today: read from local cache.
+
+### 4. `sync` Command
+- `hatebu sync`
+- Options:
+  - `--days <number>` (default: `1`)
+  - `-d, --date <yyyy-mm-dd>`
+- Behavior:
+  - `--date`: fetch that date and save cache.
+  - no `--date`: fetch yesterday..N days ago and save each day.
+
+### 5. `import` Command
+- `hatebu import <dir>`
+- Expects legacy layout under `<dir>/YYYY/MM/*.json`
+- Copies files into current cache directory.
 
 ## Consequences
-- **User Experience:** Predictable sub-command patterns across different tools.
-- **Automation Ready:** JSON output and standard flags make the tools easy to use in shell scripts or by AI agents.
-- **Consistency:** Both tools follow the same logic for handling data and output.
+- Documentation now matches actual runtime behavior.
+- Removed references to non-existent commands and unrelated tools.

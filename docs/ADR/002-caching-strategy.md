@@ -1,33 +1,42 @@
-# ADR 002: Caching Strategy and Storage Structure
+# ADR 002: Cache Strategy and Storage Layout
 
 ## Status
-Proposed
+Accepted
 
 ## Context
-The previous implementations (`hatebu-ai` and `hmggg`) stored data within the project directory (e.g., `public/data/` or `tmp/gyazo_cache/`). This is problematic for portable CLI tools. We need a standardized location for cache files and a robust structure to handle large datasets.
+`hatebucli` stores fetched bookmarks on local disk so users can re-read old days without calling the RSS endpoint every time.
 
 ## Decision
-We will use the user's home directory for storage and implement a nested directory structure.
+Use an XDG-style cache root with a date-based directory structure.
 
-### 1. Storage Location
-Caching will adhere to the XDG Base Directory Specification (or equivalent for the OS).
-- **Hatebucli:** `~/.cache/hatebucli/`
-- **Gyazocli:** `~/.cache/gyazocli/`
+### 1. Cache Root Directory
+- If `XDG_CACHE_HOME` is set:
+  - `<XDG_CACHE_HOME>/hatebucli`
+- Otherwise:
+  - `~/.cache/hatebucli`
 
-### 2. Nested Directory Structure
-To avoid performance issues with a single directory containing tens of thousands of files, we will use a nested structure.
-- **Hatebucli:** `YYYY/MM/DD.json`
-- **Gyazocli:** Using the first 1-2 characters of the `image_id` for nesting.
-  - Example: `~/.cache/gyazocli/images/a/1/a1b2c3d4.json`
+`getCacheDir()` creates this directory automatically if it does not exist.
 
-### 3. Cache Revalidation
-Cached data must be refreshable to account for updates (e.g., Gyazo OCR metadata).
-- **Stale-While-Revalidate:** The CLI will have a `--refresh` or `--no-cache` flag to force re-fetching.
-- **Hatebucli:** Bookmarks for the current day should be re-fetched frequently, while past days can be assumed stable (though bookmarks can be deleted).
-- **Gyazocli:** OCR and object recognition are asynchronous processes. Cached results without OCR should be re-validated periodically.
+### 2. File Layout
+- Path format: `YYYY/MM/DD.json`
+- Example: `~/.cache/hatebucli/2026/02/20.json`
+
+`getCachePath(date)` creates intermediate year/month directories automatically.
+
+### 3. Runtime Behavior
+- `hatebu list`:
+  - For today: always fetches from RSS API.
+  - For non-today: reads local cache only.
+- `hatebu sync --date YYYY-MM-DD`:
+  - Fetches that date from API and writes cache.
+  - If the date is today, it still runs (with warning output).
+- `hatebu sync --days N`:
+  - Fetches from yesterday back to `N` days.
+  - Sleeps 500ms between requests.
+- `hatebu import <dir>`:
+  - Copies legacy `YYYY/MM/*.json` files into cache structure.
 
 ## Consequences
-- **Performance:** Scalable to years of activity without file system overhead.
-- **Portability:** Data is kept outside the source code, preventing repo bloat.
-- **Consistency:** Both tools follow a similar logic for data retrieval.
-- **Complexity:** Requires logic to determine if a cache entry is "stale" (e.g., checking if the OCR field is missing).
+- Cache files are predictable and easy to inspect.
+- Historical access is fast when cache exists.
+- `list` does not auto-backfill missing non-today cache; users need `sync`/`import` for that.
