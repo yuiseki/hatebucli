@@ -6,6 +6,7 @@ import { fetchBookmarksByDate } from './api';
 import { saveCache, loadCache, getCacheDir } from './storage';
 import { ensureHatenaUser, getStoredConfig, setStoredConfig } from './credentials';
 import { isDateKey, searchBookmarks, type SearchField } from './searchIndex';
+import { extractWordsFromJapaneseText } from './words';
 
 const program = new Command();
 
@@ -89,6 +90,11 @@ type TagRank = {
   count: number;
 };
 
+type WordRank = {
+  word: string;
+  count: number;
+};
+
 type HourRank = {
   hour: number;
   count: number;
@@ -113,6 +119,15 @@ type TagsSummary = {
   bookmarkCountWithTags: number;
   totalTagAssignments: number;
   ranking: TagRank[];
+  missingDates: string[];
+};
+
+type WordsSummary = {
+  range: ParsedDateOption;
+  bookmarkCount: number;
+  bookmarkCountWithWords: number;
+  totalWordAssignments: number;
+  ranking: WordRank[];
   missingDates: string[];
 };
 
@@ -488,6 +503,61 @@ async function buildTagsSummary(range: ParsedDateOption): Promise<TagsSummary> {
   };
 }
 
+async function buildWordsSummary(range: ParsedDateOption): Promise<WordsSummary> {
+  const dateList = getDateListInRange(range.start, range.end);
+  const missingDates: string[] = [];
+  const counts = new Map<string, number>();
+  let bookmarkCount = 0;
+  let bookmarkCountWithWords = 0;
+  let totalWordAssignments = 0;
+  let user: string | null = null;
+
+  for (const date of dateList) {
+    let bookmarks: any[] | null = null;
+    if (isToday(date)) {
+      if (!user) {
+        user = await ensureHatenaUser();
+      }
+      bookmarks = await fetchBookmarksByDate(user, date);
+    } else {
+      bookmarks = loadCache(date);
+      if (!bookmarks) {
+        missingDates.push(formatDateYmd(date));
+        continue;
+      }
+    }
+
+    for (const bookmark of bookmarks) {
+      bookmarkCount += 1;
+      const words = extractWordsFromJapaneseText(bookmark?.title);
+      if (words.length === 0) continue;
+
+      const uniqueWords = Array.from(new Set(words));
+      bookmarkCountWithWords += 1;
+      totalWordAssignments += uniqueWords.length;
+      for (const word of uniqueWords) {
+        counts.set(word, (counts.get(word) || 0) + 1);
+      }
+    }
+  }
+
+  const ranking: WordRank[] = Array.from(counts.entries())
+    .map(([word, count]) => ({ word, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.word.localeCompare(b.word, 'ja');
+    });
+
+  return {
+    range,
+    bookmarkCount,
+    bookmarkCountWithWords,
+    totalWordAssignments,
+    ranking,
+    missingDates,
+  };
+}
+
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function parseBookmarkTimestamp(value: unknown): Date | undefined {
@@ -854,6 +924,57 @@ program
       }
     } catch (error: any) {
       console.error('Error ranking tags:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('words')
+  .description('Rank tokenized Japanese words in bookmark titles')
+  .option('--date <yyyy|yyyy-mm|yyyy-mm-dd>', 'target date/range')
+  .option('--today', 'target today only (overrides default weekly range)')
+  .option('-l, --limit <number>', 'maximum ranking rows (max: 30)', '10')
+  .option('-j, --json', 'output as JSON')
+  .action(async (options) => {
+    try {
+      const range = resolveRankingRangeOption(options);
+      const requestedLimit = parsePositiveIntegerOption(options.limit, '--limit');
+      const limit = Math.min(requestedLimit, 30);
+      const summary = await buildWordsSummary(range);
+      const displayedRanking = summary.ranking.slice(0, limit);
+
+      if (options.json) {
+        console.log(JSON.stringify({
+          date: summary.range.dateKey,
+          bookmark_count: summary.bookmarkCount,
+          bookmark_count_with_words: summary.bookmarkCountWithWords,
+          total_word_assignments: summary.totalWordAssignments,
+          total_words: summary.ranking.length,
+          ranking: displayedRanking,
+          missing_dates: summary.missingDates,
+        }, null, 2));
+        return;
+      }
+
+      if (summary.ranking.length === 0) {
+        console.log(`No word data found for ${summary.range.dateKey}.`);
+        if (summary.missingDates.length > 0) {
+          console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+        }
+        return;
+      }
+
+      console.log(`Words on ${summary.range.dateKey}`);
+      displayedRanking.forEach((item, index) => {
+        console.log(`${index + 1}. ${item.word}: ${item.count}`);
+      });
+      console.log(`Total bookmarks with words: ${summary.bookmarkCountWithWords}`);
+      console.log(`Total word assignments: ${summary.totalWordAssignments}`);
+      if (summary.missingDates.length > 0) {
+        console.log(`Missing cache dates: ${summary.missingDates.join(', ')}`);
+      }
+    } catch (error: any) {
+      console.error('Error ranking words:', error.message);
       process.exit(1);
     }
   });

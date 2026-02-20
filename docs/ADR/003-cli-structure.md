@@ -82,7 +82,21 @@ Document the current command set exactly as implemented.
   - Tag sources are `tags`/`categories` fields and leading `[tag]` blocks in bookmark comment.
   - If range includes today, today is fetched from API.
 
-### 9. `stats` Command
+### 9. `words` Command
+- `hatebu words`
+- Default range:
+  - from 8 days ago to yesterday
+- Options:
+  - `--date <yyyy|yyyy-mm|yyyy-mm-dd>`
+  - `--today` (target today only; mutually exclusive with `--date`)
+  - `-l, --limit <number>` (default: `10`, max: `30`)
+  - `-j, --json`
+- Behavior:
+  - Tokenizes bookmark titles with local Lindera IPADIC (`lindera-wasm-nodejs-ipadic`).
+  - Aggregates tokenized word counts from cached bookmark JSON.
+  - If range includes today, today is fetched from API.
+
+### 10. `stats` Command
 - `hatebu stats`
 - Default range:
   - from 8 days ago to yesterday

@@ -146,6 +146,43 @@ test('tags ranking is built from tags, categories and description tag blocks', (
   expect(result.stdout).toContain('#delta: 1');
 });
 
+test('words ranks Japanese tokens from bookmark titles', () => {
+  const ws = createTempWorkspace();
+
+  writeDailyCache(ws.cacheBase, '2026-01-15', [
+    {
+      title: '生成AIで学習する',
+      link: 'https://example.com/1',
+      date: '2026-01-15T09:00:00+09:00',
+    },
+    {
+      title: '学習データの前処理',
+      link: 'https://example.com/2',
+      date: '2026-01-15T10:00:00+09:00',
+    },
+    {
+      title: 'WebAssembly入門',
+      link: 'https://example.com/3',
+      date: '2026-01-15T11:00:00+09:00',
+    },
+  ]);
+
+  const result = runCli(ws.cacheBase, ws.homeDir, ['words', '--date', '2026-01', '--json', '--limit', '20']);
+  expect(result.status).toBe(0);
+
+  const parsed = JSON.parse(result.stdout) as {
+    date: string;
+    total_words: number;
+    ranking: Array<{ word: string; count: number }>;
+  };
+
+  expect(parsed.date).toBe('2026-01');
+  expect(parsed.total_words).toBeGreaterThan(0);
+  const learning = parsed.ranking.find(item => item.word === '学習');
+  expect(learning).toBeDefined();
+  expect(learning?.count).toBe(2);
+});
+
 test('search honors --field and creates day index file', () => {
   const ws = createTempWorkspace();
 
