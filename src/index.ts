@@ -89,6 +89,16 @@ type TagRank = {
   count: number;
 };
 
+type HourRank = {
+  hour: number;
+  count: number;
+};
+
+type WeekdayRank = {
+  weekday: number;
+  count: number;
+};
+
 type DomainsSummary = {
   range: ParsedDateOption;
   bookmarkCount: number;
@@ -103,6 +113,27 @@ type TagsSummary = {
   bookmarkCountWithTags: number;
   totalTagAssignments: number;
   ranking: TagRank[];
+  missingDates: string[];
+};
+
+type StatsDateRange = {
+  range: ParsedDateOption;
+  days: number;
+  startLabel: string;
+  endLabel: string;
+};
+
+type StatsSummary = {
+  dateRange: StatsDateRange;
+  bookmarkCount: number;
+  bookmarkCountWithTimestamp: number;
+  bookmarkCountWithDomain: number;
+  bookmarkCountWithTags: number;
+  totalTagAssignments: number;
+  hourRanking: HourRank[];
+  weekdayRanking: WeekdayRank[];
+  domainRanking: DomainRank[];
+  tagRanking: TagRank[];
   missingDates: string[];
 };
 
@@ -221,6 +252,63 @@ function resolveRankingRangeOption(options: { date?: string; today?: boolean }):
     return parseDateOption(options.date);
   }
   return buildRecentWeekRangeUntilYesterday();
+}
+
+function buildStatsDateRange(dateOption: string | undefined, daysOption: string): StatsDateRange {
+  if (!dateOption && daysOption === '7') {
+    const weekly = buildRecentWeekRangeUntilYesterday();
+    return {
+      range: weekly,
+      days: 7,
+      startLabel: formatDateYmd(weekly.start),
+      endLabel: formatDateYmd(weekly.end),
+    };
+  }
+
+  const days = parsePositiveIntegerOption(daysOption, '--days');
+  let endDate: Date;
+
+  if (dateOption) {
+    const parsed = parseDateOption(dateOption);
+    endDate = new Date(parsed.end);
+  } else {
+    const now = new Date();
+    endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 1,
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  const startDate = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  startDate.setDate(startDate.getDate() - (days - 1));
+
+  const startLabel = formatDateYmd(startDate);
+  const endLabel = formatDateYmd(endDate);
+
+  return {
+    range: {
+      granularity: 'day',
+      dateKey: `${startLabel}..${endLabel}`,
+      start: startDate,
+      end: endDate,
+    },
+    days,
+    startLabel,
+    endLabel,
+  };
 }
 
 function getDateListInRange(start: Date, end: Date): Date[] {
@@ -398,6 +486,190 @@ async function buildTagsSummary(range: ParsedDateOption): Promise<TagsSummary> {
     ranking,
     missingDates,
   };
+}
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function parseBookmarkTimestamp(value: unknown): Date | undefined {
+  if (typeof value !== 'string') return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
+
+async function buildStatsSummary(dateRange: StatsDateRange): Promise<StatsSummary> {
+  const dateList = getDateListInRange(dateRange.range.start, dateRange.range.end);
+  const missingDates: string[] = [];
+  const domainCounts = new Map<string, number>();
+  const tagCounts = new Map<string, number>();
+  const hourCounts = Array.from({ length: 24 }, (_item, hour) => ({ hour, count: 0 }));
+  const weekdayCounts = Array.from({ length: 7 }, (_item, weekday) => ({ weekday, count: 0 }));
+
+  let bookmarkCount = 0;
+  let bookmarkCountWithTimestamp = 0;
+  let bookmarkCountWithDomain = 0;
+  let bookmarkCountWithTags = 0;
+  let totalTagAssignments = 0;
+  let user: string | null = null;
+
+  for (const date of dateList) {
+    let bookmarks: any[] | null = null;
+    if (isToday(date)) {
+      if (!user) {
+        user = await ensureHatenaUser();
+      }
+      bookmarks = await fetchBookmarksByDate(user, date);
+    } else {
+      bookmarks = loadCache(date);
+      if (!bookmarks) {
+        missingDates.push(formatDateYmd(date));
+        continue;
+      }
+    }
+
+    for (const bookmark of bookmarks) {
+      bookmarkCount += 1;
+
+      const bookmarkDate = parseBookmarkTimestamp(bookmark?.date);
+      if (bookmarkDate) {
+        bookmarkCountWithTimestamp += 1;
+        hourCounts[bookmarkDate.getHours()].count += 1;
+        weekdayCounts[bookmarkDate.getDay()].count += 1;
+      }
+
+      const domain = extractDomain(bookmark?.link);
+      if (domain) {
+        bookmarkCountWithDomain += 1;
+        domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+      }
+
+      const tags = extractBookmarkTags(bookmark);
+      if (tags.length > 0) {
+        bookmarkCountWithTags += 1;
+        totalTagAssignments += tags.length;
+        for (const tag of tags) {
+          tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+        }
+      }
+    }
+  }
+
+  const domainRanking = Array.from(domainCounts.entries())
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.domain.localeCompare(b.domain);
+    });
+
+  const tagRanking = Array.from(tagCounts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.tag.localeCompare(b.tag, 'ja');
+    });
+
+  const hourRanking = hourCounts.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.hour - b.hour;
+  });
+
+  const weekdayRanking = weekdayCounts.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.weekday - b.weekday;
+  });
+
+  return {
+    dateRange,
+    bookmarkCount,
+    bookmarkCountWithTimestamp,
+    bookmarkCountWithDomain,
+    bookmarkCountWithTags,
+    totalTagAssignments,
+    hourRanking,
+    weekdayRanking,
+    domainRanking,
+    tagRanking,
+    missingDates,
+  };
+}
+
+function appendStatsRankSection(
+  lines: string[],
+  title: string,
+  rows: Array<{ label: string; count: number }>,
+  top: number,
+): void {
+  lines.push(`### ${title}`);
+  const filtered = rows.filter(row => row.count > 0).slice(0, top);
+  if (filtered.length === 0) {
+    lines.push('- No data');
+    lines.push('');
+    return;
+  }
+
+  for (const row of filtered) {
+    lines.push(`- ${row.label}: ${row.count}`);
+  }
+  lines.push('');
+}
+
+function renderStatsMarkdown(summary: StatsSummary, top: number): string {
+  const lines: string[] = [];
+  lines.push('## Hatebu Stats');
+  lines.push('');
+  lines.push(
+    `- Window: ${summary.dateRange.startLabel} to ${summary.dateRange.endLabel} (${summary.dateRange.days} days)`,
+  );
+  lines.push(`- Total bookmarks: ${summary.bookmarkCount}`);
+  lines.push(`- Bookmarks with timestamp: ${summary.bookmarkCountWithTimestamp}`);
+  lines.push('');
+
+  appendStatsRankSection(
+    lines,
+    'Bookmark Time (Hour)',
+    summary.hourRanking.map(item => ({
+      label: `${String(item.hour).padStart(2, '0')}:00`,
+      count: item.count,
+    })),
+    top,
+  );
+
+  appendStatsRankSection(
+    lines,
+    'Bookmark Weekday',
+    summary.weekdayRanking.map(item => ({
+      label: WEEKDAY_LABELS[item.weekday] || String(item.weekday),
+      count: item.count,
+    })),
+    Math.min(top, 7),
+  );
+
+  appendStatsRankSection(
+    lines,
+    'Domains',
+    summary.domainRanking.map(item => ({
+      label: item.domain,
+      count: item.count,
+    })),
+    top,
+  );
+
+  appendStatsRankSection(
+    lines,
+    'Tags',
+    summary.tagRanking.map(item => ({
+      label: `#${item.tag}`,
+      count: item.count,
+    })),
+    top,
+  );
+
+  if (summary.missingDates.length > 0) {
+    lines.push(`- Missing cache dates: ${summary.missingDates.join(', ')}`);
+    lines.push('');
+  }
+
+  return lines.join('\n').trimEnd();
 }
 
 program
@@ -582,6 +854,24 @@ program
       }
     } catch (error: any) {
       console.error('Error ranking tags:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('stats')
+  .description('Show weekly stats summary in Markdown')
+  .option('--date <yyyy|yyyy-mm|yyyy-mm-dd>', 'window end date anchor (default: yesterday)')
+  .option('--days <number>', 'window length in days', '7')
+  .option('--top <number>', 'rows per section', '10')
+  .action(async (options) => {
+    try {
+      const dateRange = buildStatsDateRange(options.date, options.days || '7');
+      const top = Math.min(parsePositiveIntegerOption(options.top, '--top'), 20);
+      const summary = await buildStatsSummary(dateRange);
+      console.log(renderStatsMarkdown(summary, top));
+    } catch (error: any) {
+      console.error('Error building stats:', error.message);
       process.exit(1);
     }
   });

@@ -82,6 +82,21 @@ Document the current command set exactly as implemented.
   - Tag sources are `tags`/`categories` fields and leading `[tag]` blocks in bookmark comment.
   - If range includes today, today is fetched from API.
 
+### 9. `stats` Command
+- `hatebu stats`
+- Default range:
+  - from 8 days ago to yesterday
+- Default behavior:
+  - weekly Markdown summary.
+- Options:
+  - `--date <yyyy|yyyy-mm|yyyy-mm-dd>` (window end date anchor; default: yesterday)
+  - `--days <number>` (default: `7`)
+  - `--top <number>` (default: `10`, max: `20`)
+- Behavior:
+  - Aggregates bookmark time (hour/weekday), domain ranking, and tag ranking from cache.
+  - If range includes today, today is fetched from API.
+  - Shows missing cache dates when some days are not cached.
+
 ## Consequences
 - Documentation now matches actual runtime behavior.
 - Removed references to non-existent commands and unrelated tools.
