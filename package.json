@@ -1,17 +1,26 @@
 {
-  "name": "hatebucli",
+  "name": "@yuiseki/hatebucli",
   "version": "1.0.0",
-  "description": "",
+  "description": "Hatena Bookmark CLI for AI Secretary",
   "main": "dist/index.js",
   "bin": {
     "hatebu": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
   "directories": {
     "doc": "docs"
   },
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [],
   "author": "",
