@@ -68,3 +68,22 @@ jobs:
             > /tmp/smoke/cache/hatebucli/1970/01/01.json
           XDG_CACHE_HOME=/tmp/smoke/cache ./node_modules/.bin/hatebu words --date 1970-01-01 -j | tee words.json
           grep -q '"word"' words.json
+
+      # The MCP server pulls in the largest dependency the CLI has, and it is
+      # only reached through --mcp-server, so --help alone would not notice a
+      # missing one.
+      - name: The MCP server answers a handshake under that install
+        run: |
+          cd /tmp/smoke
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+            | HATENA_USER=ci-user timeout 30 ./node_modules/.bin/hatebu --mcp-server > handshake.jsonl
+          cat handshake.jsonl
+          grep -q '"name":"hatebucli"' handshake.jsonl
+          grep -q '"hatebu_search"' handshake.jsonl
+          grep -q '"hatebu_list"' handshake.jsonl
+          grep -q '"hatebu_domains"' handshake.jsonl
+          grep -q '"hatebu_tags"' handshake.jsonl
+          grep -q '"hatebu_words"' handshake.jsonl
+          grep -q '"hatebu_stats"' handshake.jsonl

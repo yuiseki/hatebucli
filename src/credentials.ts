@@ -39,20 +39,29 @@ export function setStoredConfig(key: string, value: string): void {
   console.error(`Config set: ${key}=${value}`);
 }
 
-export async function ensureHatenaUser(): Promise<string> {
-  // 1. Check current config (env)
+/**
+ * The username from the environment or from the stored config, or undefined.
+ * The non-exiting form: the MCP server has to report a missing username
+ * rather than exit in the middle of answering a call.
+ */
+export function resolveHatenaUser(): string | undefined {
   if (config.HATENA_USER) {
     return config.HATENA_USER;
   }
-
-  // 2. Check stored config
   const storedUser = getStoredConfig('username');
   if (storedUser) {
     setHatenaUser(storedUser);
     return storedUser;
   }
+  return undefined;
+}
 
-  // 3. Fail with suggestion
+export async function ensureHatenaUser(): Promise<string> {
+  const user = resolveHatenaUser();
+  if (user) {
+    return user;
+  }
+
   console.error('Error: Hatena Username is not set.');
   console.error('Please run the following command to set your username:');
   console.error('  hatebu config set username <your_username>');

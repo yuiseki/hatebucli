@@ -190,3 +190,89 @@ export function yyyymmdd(date: Date): string {
   const parts = ymdPartsFromDate(date);
   return `${parts.year}${parts.month}${parts.day}`;
 }
+
+/**
+ * Speaks JSON-RPC to `hatebu --mcp-server` over a pipe, so the tests cover the
+ * framing as well as the tools. One process per call batch: the server is
+ * stateless, and a batch is cheaper than keeping one alive across tests.
+ */
+export type McpToolCall = { name: string; arguments?: Record<string, unknown> };
+
+export type McpResponse = {
+  id: number;
+  result?: any;
+  error?: { code: number; message: string };
+};
+
+export async function runMcp(
+  workspace: Workspace,
+  calls: McpToolCall[],
+  options: RunOptions = {},
+): Promise<{ initialize: any; tools: any[]; responses: McpResponse[]; stderr: string }> {
+  const requests: string[] = [
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'hatebucli-test', version: '0' },
+      },
+    }),
+    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+    JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+  ];
+  calls.forEach((call, index) => {
+    requests.push(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3 + index,
+        method: 'tools/call',
+        params: { name: call.name, arguments: call.arguments ?? {} },
+      }),
+    );
+  });
+
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    XDG_CACHE_HOME: workspace.cacheBase,
+    HOME: workspace.homeDir,
+    HATENA_USER: 'test-user',
+    ...(options.env ?? {}),
+  };
+  if (options.user === null) {
+    delete env.HATENA_USER;
+  } else if (typeof options.user === 'string') {
+    env.HATENA_USER = options.user;
+  }
+
+  const result = spawnSync(process.execPath, [CLI_PATH, '--mcp-server'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    env,
+    input: `${requests.join('\n')}\n`,
+    timeout: 60_000,
+  });
+
+  const messages: McpResponse[] = result.stdout
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
+
+  return {
+    initialize: messages.find((message) => message.id === 1)?.result,
+    tools: messages.find((message) => message.id === 2)?.result?.tools ?? [],
+    responses: messages.filter((message) => message.id >= 3),
+    stderr: result.stderr,
+  };
+}
+
+/** The first text block of a tool result, parsed as JSON. */
+export function toolJson(response: McpResponse): any {
+  return JSON.parse(response.result.content[0].text);
+}
+
+export function toolText(response: McpResponse): string {
+  return response.result.content[0].text;
+}

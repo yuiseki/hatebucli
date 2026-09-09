@@ -24,6 +24,7 @@ const program = new Command();
 program
   .name('hatebu')
   .description('Hatena Bookmark CLI for AI Secretary')
+  .option('--mcp-server', 'run as a Model Context Protocol server over stdio')
   .version(cliVersion());
 
 // In the order --help should print them.
@@ -37,4 +38,27 @@ registerStatsCommand(program);
 registerSyncCommand(program);
 registerImportCommand(program);
 
-program.parseAsync(process.argv);
+/**
+ * The MCP server is not a commander command: it owns stdout for the whole
+ * process, which does not fit inside an action that shares stdout with the
+ * usual human-readable output. The spellings a client is likely to be
+ * configured with all work.
+ */
+const MCP_INVOCATIONS = new Set(['--mcp-server', '--mcp', 'mcp-server', 'mcp']);
+
+function isMcpInvocation(argv: string[]): boolean {
+  const first = argv.slice(2)[0];
+  return first !== undefined && MCP_INVOCATIONS.has(first);
+}
+
+if (isMcpInvocation(process.argv)) {
+  // Required lazily: the MCP SDK is a large import that every other command
+  // would otherwise pay for at startup.
+  const { runMcpServer } = require('./mcp') as typeof import('./mcp');
+  runMcpServer().catch((error: any) => {
+    console.error('MCP server failed:', error?.message || error);
+    process.exit(1);
+  });
+} else {
+  program.parseAsync(process.argv);
+}
