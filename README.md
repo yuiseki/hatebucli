@@ -19,6 +19,11 @@ questions without you translating each one into flags.
 npm i -g @yuiseki/hatebucli
 ```
 
+Needs Node 22.12 or newer. That is where `require()` of an ES module landed,
+which some of the dependencies now need; Node 20 and earlier went end of life
+on 2026-04-30. Run it on an older one and it says so rather than failing from
+inside `node_modules`.
+
 ## Getting started
 
 ```bash
@@ -247,6 +252,11 @@ npm install
 npm run build
 npm test
 ```
+
+CI runs the same on Node 22, 24 and 26. `npm install` wants npm 11 or newer:
+npm 10.9.3 cannot resolve this dependency set and dies in arborist with
+`Cannot read properties of null (reading 'edgesOut')`. `npm ci` against the
+committed lockfile is fine on either.
 
 The tests spawn the built CLI and assert on its output, and the MCP tests speak
 JSON-RPC to it over a pipe, so they cover the framing too. Nothing in them

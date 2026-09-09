@@ -9,7 +9,9 @@ import path from 'node:path';
 import { spawn, spawnSync, type SpawnSyncReturns } from 'node:child_process';
 
 export const REPO_ROOT = process.cwd();
-export const CLI_PATH = path.join(REPO_ROOT, 'dist', 'index.js');
+// The published entry point, not dist/index.js: the wrapper is what users run,
+// and it is where the Node version check lives.
+export const CLI_PATH = path.join(REPO_ROOT, 'bin', 'hatebu.js');
 
 export type BookmarkFixture = {
   title: string;

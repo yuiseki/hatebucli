@@ -4,9 +4,10 @@
   "description": "Hatena Bookmark CLI for AI Secretary",
   "main": "dist/index.js",
   "bin": {
-    "hatebu": "dist/index.js"
+    "hatebu": "bin/hatebu.js"
   },
   "files": [
+    "bin",
     "dist",
     "README.md",
     "docs"
@@ -26,19 +27,21 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "type": "commonjs",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "lindera-wasm-nodejs-ipadic": "^2.0.0",
     "rss-parser": "^3.13.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^25.9.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "@types/node": "^26.5.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
   }
 }
