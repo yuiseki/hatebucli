@@ -23,7 +23,7 @@ import {
   type ParsedDateOption,
 } from './dates';
 import { resolveHatenaUser } from './credentials';
-import { searchBookmarks, type SearchField } from './searchIndex';
+import { searchBookmarks, type SearchField } from './services/search';
 import { loadDay } from './services/bookmarks';
 import {
   buildTimeline,

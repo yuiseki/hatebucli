@@ -25,7 +25,11 @@ hatebu random -n 5                          # dig something out of the archive
 ```
 
 These read every cached day rather than an index, which over a twenty-nine
-year archive takes about half a second.
+year archive takes about half a second. So does `hatebu search`: earlier
+versions kept an index under `~/.cache/hatebucli/index`, which turned out to be
+larger and slower than the bookmarks it indexed (see
+[ADR 005](docs/ADR/005-search-by-scanning.md)). Nothing writes there any more,
+and the directory can be deleted.
 
 ## MCP server
 

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { isDateKey } from '../dates';
 import { parsePositiveIntegerOption } from '../options';
-import { searchBookmarks, type SearchField } from '../searchIndex';
+import { searchBookmarks, type SearchField } from '../services/search';
 
 function parseSearchField(value: string): SearchField {
   if (value === 'all' || value === 'title' || value === 'url') {

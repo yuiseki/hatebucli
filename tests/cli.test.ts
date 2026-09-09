@@ -109,7 +109,7 @@ test('words ranks Japanese tokens from bookmark titles', () => {
   expect(learning?.count).toBe(2);
 });
 
-test('search honors --field and creates day index file', () => {
+test('search honors --field and writes nothing', () => {
   const ws = createTempWorkspace();
 
   writeDailyCache(ws.cacheBase, '2026-02-01', [
@@ -151,16 +151,8 @@ test('search honors --field and creates day index file', () => {
   expect(titleFieldResult.stdout).toContain('[2026-02-01] example.com title only');
   expect(titleFieldResult.stdout).not.toContain('生成AIメモ');
 
-  const indexPath = path.join(
-    ws.cacheBase,
-    'hatebucli',
-    'index',
-    'v1',
-    '2026',
-    '02',
-    '01.json',
-  );
-  expect(fs.existsSync(indexPath)).toBe(true);
+  // Search reads the cached days themselves; nothing is written to search.
+  expect(fs.existsSync(path.join(ws.cacheBase, 'hatebucli', 'index'))).toBe(false);
 });
 
 test('stats outputs markdown summary sections', () => {

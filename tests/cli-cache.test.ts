@@ -13,11 +13,6 @@ import {
   writeDailyCache,
 } from './helpers';
 
-function indexPath(cacheBase: string, dateKey: string): string {
-  const [year, month, day] = dateKey.split('-');
-  return path.join(cacheBase, 'hatebucli', 'index', 'v1', year, month, `${day}.json`);
-}
-
 test('search with no --date covers every cached day, newest first', () => {
   const ws = createTempWorkspace();
   writeDailyCache(ws.cacheBase, '2024-05-01', [
@@ -47,7 +42,7 @@ test('search --limit caps the results', () => {
   expect(JSON.parse(result.stdout)).toHaveLength(2);
 });
 
-test('the day index is rebuilt when the cached day changes', () => {
+test('a re-synced day is searched as it now is', () => {
   const ws = createTempWorkspace();
   writeDailyCache(ws.cacheBase, '2026-02-01', [
     { title: '最初の記事', link: 'https://example.com/1', date: '2026-02-01T09:00:00+09:00' },
@@ -56,9 +51,8 @@ test('the day index is rebuilt when the cached day changes', () => {
   const first = runCli(ws.cacheBase, ws.homeDir, ['search', '最初', '--json']);
   expect(first.status).toBe(0);
   expect(JSON.parse(first.stdout)).toHaveLength(1);
-  expect(fs.existsSync(indexPath(ws.cacheBase, '2026-02-01'))).toBe(true);
 
-  // A later sync replaces the day. The stale index must not answer for it.
+  // A later sync replaces the day. Nothing may answer for the old contents.
   writeDailyCache(ws.cacheBase, '2026-02-01', [
     { title: '差し替えた記事', link: 'https://example.com/2', date: '2026-02-01T09:00:00+09:00' },
   ]);
