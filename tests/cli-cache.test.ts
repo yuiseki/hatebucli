@@ -9,6 +9,7 @@ import {
   createTempWorkspace,
   dailyCachePath,
   ensureDir,
+  localTimestamp,
   runCli,
   writeDailyCache,
 } from './helpers';
@@ -137,20 +138,20 @@ test('stats --json carries the same window and numbers as the markdown', () => {
     {
       title: 'One',
       link: 'https://example.com/a',
-      date: '2026-02-18T09:00:00+09:00',
+      date: localTimestamp('2026-02-18', 9),
       tags: ['alpha'],
     },
     {
       title: 'Two',
       link: 'https://example.com/b',
-      date: '2026-02-18T21:00:00+09:00',
+      date: localTimestamp('2026-02-18', 21),
     },
   ]);
   writeDailyCache(ws.cacheBase, '2026-02-19', [
     {
       title: 'Three',
       link: 'https://news.example.net/c',
-      date: '2026-02-19T09:00:00+09:00',
+      date: localTimestamp('2026-02-19', 9),
       tags: ['alpha'],
     },
   ]);

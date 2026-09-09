@@ -69,6 +69,23 @@ export function getDefaultWeeklyRangeLabels(): {
   };
 }
 
+/**
+ * A timestamp at a given hour of a given day, in the timezone the test is
+ * running in. The CLI buckets by local time, so a fixture written with a fixed
+ * offset lands in a different hour, and sometimes a different day, depending
+ * on where the test runs.
+ */
+export function localTimestamp(dateKey: string, hour: number, minute = 0): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const at = new Date(year, month - 1, day, hour, minute, 0, 0);
+  const offsetMinutes = -at.getTimezoneOffset();
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const absolute = Math.abs(offsetMinutes);
+  const offset = `${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${dateKey}T${pad(hour)}:${pad(minute)}:00${offset}`;
+}
+
 export function dailyCachePath(cacheBase: string, dateKey: string): string {
   const [year, month, day] = dateKey.split('-');
   return path.join(cacheBase, 'hatebucli', year, month, `${day}.json`);
