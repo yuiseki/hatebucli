@@ -241,9 +241,10 @@ export function createMcpServer(): McpServer {
     {
       title: 'The tags the user files bookmarks under',
       description:
-        'The tags the user put on their bookmarks over a range, most used first. The ' +
-        'user has only been tagging since 2025, so an older range legitimately returns ' +
-        'nothing; use hatebu_words for what an untagged stretch was about.',
+        'The tags the user put on their bookmarks over a range, most used first. Tags ' +
+        'come from the feed as it was on the day, so a stretch from before the user ' +
+        'started tagging legitimately returns nothing; use hatebu_words for what an ' +
+        'untagged stretch was about.',
       inputSchema: {
         date: z.string().optional().describe(DATE_DESCRIPTION),
         today: z.boolean().optional().describe('Today only. Cannot be combined with date'),
@@ -431,8 +432,9 @@ export function createMcpServer(): McpServer {
     {
       title: 'The bookmarks under one tag',
       description:
-        'Every bookmark the user filed under a tag, newest first. Tags only exist from ' +
-        '2025 onwards, so use hatebu_timeline with a query for an older subject.',
+        'Every bookmark the user filed under a tag, newest first. Nothing is returned ' +
+        'for a stretch from before the user started tagging, so use hatebu_timeline ' +
+        'with a query for an older subject.',
       inputSchema: {
         tag: z.string().min(1).describe('The tag, without a leading #'),
         limit: z.number().int().min(1).max(100).default(20).describe('Most bookmarks to return'),

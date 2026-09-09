@@ -76,9 +76,10 @@ whether the day was cached at all.
 - `hatebu_stats` returns the Markdown and the same numbers as JSON, as two
   content blocks. The Markdown is what a person wants pasted; the JSON is what
   a model should compute from.
-- Tool descriptions carry what the data cannot say for itself: that tags only
-  exist from 2025 onwards, and that a negative answer from `hatebu_lookup` is
-  meaningful because the archive is complete.
+- Tool descriptions carry what the data cannot say for itself: that a stretch
+  from before the user started tagging has no tags rather than no subject, and
+  that a negative answer from `hatebu_lookup` is meaningful when the archive is
+  complete.
 - The tests speak JSON-RPC to the built CLI over a pipe, so they cover the
   framing as well as the tools. CI additionally runs a handshake against a
   production install with hoisting turned off, because `--mcp-server` is the

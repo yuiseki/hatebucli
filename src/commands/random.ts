@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { parsePositiveIntegerOption } from '../options';
+import { parseBoundOption, parsePositiveIntegerOption } from '../options';
 import { randomBookmarks } from '../services/queries';
 
 export function registerRandomCommand(program: Command): void {
@@ -15,13 +15,15 @@ export function registerRandomCommand(program: Command): void {
     .option('-j, --json', 'output as JSON')
     .action((options) => {
       const count = parsePositiveIntegerOption(options.count, '--count');
+      const from = parseBoundOption(options.from, '--from');
+      const to = parseBoundOption(options.to, '--to');
       const { entries, matchCount } = randomBookmarks(
         {
           tag: options.tag,
           domain: options.domain,
           query: options.query,
-          from: options.from,
-          to: options.to,
+          from,
+          to,
         },
         count,
       );

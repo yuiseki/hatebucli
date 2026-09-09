@@ -149,3 +149,15 @@ test('random draws from the matches and never more than there are', () => {
   ]);
   expect(JSON.parse(filtered.stdout).match_count).toBe(1);
 });
+
+test('random rejects bounds it cannot use', () => {
+  const ws = createTempWorkspace();
+
+  const from = runCli(ws.cacheBase, ws.homeDir, ['random', '--from', 'garbage']);
+  expect(from.status).toBe(1);
+  expect(from.stderr).toMatch(/--from must be a valid yyyy-mm-dd/);
+
+  const to = runCli(ws.cacheBase, ws.homeDir, ['random', '--to', '2026-02-30']);
+  expect(to.status).toBe(1);
+  expect(to.stderr).toMatch(/--to must be a valid yyyy-mm-dd/);
+});

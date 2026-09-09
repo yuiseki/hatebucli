@@ -1,15 +1,6 @@
 import { Command } from 'commander';
-import { isDateKey } from '../dates';
+import { parseBoundOption } from '../options';
 import { buildTimeline } from '../services/queries';
-
-function parseBoundOption(value: string | undefined, optionName: string): string | undefined {
-  if (value === undefined) return undefined;
-  if (!isDateKey(value)) {
-    console.error(`Error: ${optionName} must be a valid yyyy-mm-dd.`);
-    process.exit(1);
-  }
-  return value;
-}
 
 export function registerTimelineCommand(program: Command): void {
   program

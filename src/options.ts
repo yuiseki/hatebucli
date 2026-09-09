@@ -6,6 +6,7 @@
  */
 import {
   DATE_OPTION_PROBLEMS,
+  isDateKey,
   tryParseDateOption,
   tryParseDayOption,
   buildRecentWeekRangeUntilYesterday,
@@ -62,4 +63,18 @@ export function resolveRankingRangeOption(options: { date?: string; today?: bool
     return parseDateOption(options.date);
   }
   return buildRecentWeekRangeUntilYesterday();
+}
+
+/**
+ * The open-ended `--from` / `--to` bounds of a whole-archive question. They are
+ * compared as strings against yyyy-mm-dd keys, so an unchecked value would not
+ * fail: it would quietly select the wrong days.
+ */
+export function parseBoundOption(value: string | undefined, optionName: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (!isDateKey(value)) {
+    console.error(`Error: ${optionName} must be a valid yyyy-mm-dd.`);
+    process.exit(1);
+  }
+  return value;
 }
