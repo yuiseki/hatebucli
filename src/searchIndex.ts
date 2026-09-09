@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { BookmarkItem } from './api';
 import { getCacheDir } from './storage';
+import { isDateKey } from './dates';
 
 export type SearchField = 'all' | 'title' | 'url';
 
@@ -52,23 +53,10 @@ type MatchAccumulator = {
 };
 
 const INDEX_VERSION = 1;
-const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const YEAR_PATTERN = /^\d{4}$/;
 const MONTH_PATTERN = /^\d{2}$/;
 const DAY_FILE_PATTERN = /^\d{2}\.json$/;
 const SYMBOL_OR_PUNCT_CHAR = /[\p{P}\p{S}]/u;
-
-export function isDateKey(value: string): boolean {
-  if (!DATE_KEY_PATTERN.test(value)) return false;
-  const [yearText, monthText, dayText] = value.split('-');
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const probe = new Date(year, month - 1, day);
-  return probe.getFullYear() === year &&
-    probe.getMonth() === month - 1 &&
-    probe.getDate() === day;
-}
 
 export function listCachedDateKeys(): string[] {
   const cacheDir = getCacheDir();
