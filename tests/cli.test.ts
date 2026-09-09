@@ -1,87 +1,13 @@
 import { test, expect } from 'vitest';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
-
-const REPO_ROOT = process.cwd();
-const CLI_PATH = path.join(REPO_ROOT, 'dist', 'index.js');
-
-type BookmarkFixture = {
-  title: string;
-  link: string;
-  date: string;
-  description?: string;
-  tags?: string[];
-  categories?: string[];
-};
-
-function ensureDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function createTempWorkspace(): { rootDir: string; cacheBase: string; homeDir: string } {
-  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hatebucli-test-'));
-  const cacheBase = path.join(rootDir, 'cache');
-  const homeDir = path.join(rootDir, 'home');
-  ensureDir(cacheBase);
-  ensureDir(homeDir);
-  return { rootDir, cacheBase, homeDir };
-}
-
-function ymdPartsFromDate(date: Date): { year: string; month: string; day: string } {
-  return {
-    year: String(date.getFullYear()),
-    month: String(date.getMonth() + 1).padStart(2, '0'),
-    day: String(date.getDate()).padStart(2, '0'),
-  };
-}
-
-function ymdFromDate(date: Date): string {
-  const parts = ymdPartsFromDate(date);
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function getDefaultWeeklyRangeLabels(): {
-  start: Date;
-  end: Date;
-  startLabel: string;
-  endLabel: string;
-} {
-  const today = new Date();
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 8, 0, 0, 0, 0);
-  return {
-    start,
-    end,
-    startLabel: ymdFromDate(start),
-    endLabel: ymdFromDate(end),
-  };
-}
-
-function writeDailyCache(cacheBase: string, dateKey: string, bookmarks: BookmarkFixture[]): void {
-  const [year, month, day] = dateKey.split('-');
-  const dir = path.join(cacheBase, 'hatebucli', year, month);
-  ensureDir(dir);
-  fs.writeFileSync(path.join(dir, `${day}.json`), JSON.stringify(bookmarks, null, 2), 'utf8');
-}
-
-function runCli(
-  cacheBase: string,
-  homeDir: string,
-  args: string[],
-): SpawnSyncReturns<string> {
-  return spawnSync(process.execPath, [CLI_PATH, ...args], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      XDG_CACHE_HOME: cacheBase,
-      HOME: homeDir,
-      HATENA_USER: 'test-user',
-    },
-  });
-}
+import {
+  createTempWorkspace,
+  getDefaultWeeklyRangeLabels,
+  runCli,
+  writeDailyCache,
+  ymdFromDate,
+} from './helpers';
 
 test('domains default range is from 8 days ago to yesterday', () => {
   const ws = createTempWorkspace();

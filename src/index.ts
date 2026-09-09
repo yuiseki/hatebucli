@@ -74,6 +74,21 @@ function parsePositiveIntegerOption(value: string, optionName: string): number {
   return parsed;
 }
 
+/**
+ * The `-d, --date <yyyy-mm-dd>` options that name one day. The day is built in
+ * local time, which is what the cache paths and the feed's date parameter are
+ * in; `new Date('2026-02-18')` is UTC midnight and drifts a day either side of
+ * it depending on the timezone.
+ */
+function parseDayOption(value: string): Date {
+  if (!isDateKey(value)) {
+    console.error('Error: --date must be a valid yyyy-mm-dd.');
+    process.exit(1);
+  }
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
 function parseSearchField(value: string): SearchField {
   if (value === 'all' || value === 'title' || value === 'url') {
     return value;
@@ -759,7 +774,8 @@ program
   .option('-j, --json', 'output as JSON')
   .action(async (options) => {
     const user = await ensureHatenaUser();
-    const targetDate = options.date ? new Date(options.date) : new Date();
+    const targetDate = options.date ? parseDayOption(options.date) : new Date();
+    const targetLabel = formatDateYmd(targetDate);
     
     let bookmarks;
     if (isToday(targetDate)) {
@@ -773,7 +789,7 @@ program
       if (options.json) {
         console.log(JSON.stringify([]));
       } else {
-        console.log(`No bookmarks found for ${targetDate.toISOString().split('T')[0]}.`);
+        console.log(`No bookmarks found for ${targetLabel}.`);
       }
       return;
     }
@@ -781,7 +797,7 @@ program
     if (options.json) {
       console.log(JSON.stringify(bookmarks, null, 2));
     } else {
-      console.log(`--- Bookmarks for ${targetDate.toISOString().split('T')[0]} ---`);
+      console.log(`--- Bookmarks for ${targetLabel} ---`);
       bookmarks.forEach((b: any) => {
         console.log(`- ${b.title}\n  ${b.link}`);
       });
@@ -1012,9 +1028,14 @@ program
   .option('--days <number>', 'number of days to sync', '1')
   .option('-d, --date <yyyy-mm-dd>', 'specific date to sync')
   .action(async (options) => {
+    if (options.date && options.days && options.days !== '1') {
+      console.error('Error: --date and --days cannot be used together.');
+      process.exit(1);
+    }
+
     const user = await ensureHatenaUser();
     if (options.date) {
-      const targetDate = new Date(options.date);
+      const targetDate = parseDayOption(options.date);
       if (isToday(targetDate)) {
         console.error("Warning: Syncing today's bookmarks is not recommended as it's still changing.");
       }
@@ -1023,12 +1044,12 @@ program
       saveCache(targetDate, bookmarks);
       console.log(`Saved ${bookmarks.length} bookmarks.`);
     } else {
-      const days = parseInt(options.days, 10);
+      const days = parsePositiveIntegerOption(options.days, '--days');
       console.log(`Syncing bookmarks for the last ${days} days (excluding today)...`);
       for (let i = 1; i <= days; i++) {
         const targetDate = new Date();
         targetDate.setDate(targetDate.getDate() - i);
-        const dateStr = targetDate.toISOString().split('T')[0];
+        const dateStr = formatDateYmd(targetDate);
         console.log(`Syncing bookmarks for ${dateStr}...`);
         const bookmarks = await fetchBookmarksByDate(user, targetDate);
         saveCache(targetDate, bookmarks);
