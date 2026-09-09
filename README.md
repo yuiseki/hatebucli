@@ -8,11 +8,32 @@ Hatena Bookmark CLI for AI Secretary.
 npm i -g @yuiseki/hatebucli
 ```
 
+Hatena Bookmark keeps only a feed of what you bookmarked, a day at a time.
+This syncs those days into a local cache and answers questions over the whole
+of it, offline.
+
 ## Usage
 
 ```bash
+hatebu config set username <your_username>
+hatebu sync --days 30      # fill the cache, a day per request
 hatebu --help
 ```
+
+### A day, and a range of days
+
+```bash
+hatebu list                       # today, from the feed
+hatebu list --date 2026-02-18     # an earlier day, from the cache
+hatebu search 地図                 # every cached day, newest first
+hatebu domains --date 2026        # the sites of a year
+hatebu tags --date 2026-02        # the tags of a month
+hatebu words                      # what last week was about
+hatebu stats --days 30            # a window as one summary
+```
+
+Every ranking reports the days of the range the cache does not hold, so a low
+count can be told apart from a gap in the sync.
 
 ### Asking about the whole archive
 
