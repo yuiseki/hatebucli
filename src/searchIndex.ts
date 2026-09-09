@@ -3,6 +3,7 @@ import path from 'path';
 import type { BookmarkItem } from './api';
 import { getCacheDir } from './storage';
 import { isDateKey } from './dates';
+import { listCachedDateKeys } from './services/archive';
 
 export type SearchField = 'all' | 'title' | 'url';
 
@@ -53,41 +54,7 @@ type MatchAccumulator = {
 };
 
 const INDEX_VERSION = 1;
-const YEAR_PATTERN = /^\d{4}$/;
-const MONTH_PATTERN = /^\d{2}$/;
-const DAY_FILE_PATTERN = /^\d{2}\.json$/;
 const SYMBOL_OR_PUNCT_CHAR = /[\p{P}\p{S}]/u;
-
-export function listCachedDateKeys(): string[] {
-  const cacheDir = getCacheDir();
-  if (!fs.existsSync(cacheDir)) return [];
-
-  const dateKeys: string[] = [];
-  const years = fs.readdirSync(cacheDir).filter(name => YEAR_PATTERN.test(name));
-
-  for (const year of years) {
-    const yearPath = path.join(cacheDir, year);
-    if (!fs.statSync(yearPath).isDirectory()) continue;
-
-    const months = fs.readdirSync(yearPath).filter(name => MONTH_PATTERN.test(name));
-    for (const month of months) {
-      const monthPath = path.join(yearPath, month);
-      if (!fs.statSync(monthPath).isDirectory()) continue;
-
-      const dayFiles = fs.readdirSync(monthPath).filter(name => DAY_FILE_PATTERN.test(name));
-      for (const dayFile of dayFiles) {
-        const day = dayFile.replace('.json', '');
-        const dateKey = `${year}-${month}-${day}`;
-        if (isDateKey(dateKey)) {
-          dateKeys.push(dateKey);
-        }
-      }
-    }
-  }
-
-  dateKeys.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  return dateKeys;
-}
 
 export function searchBookmarks(query: string, options: SearchOptions = {}): SearchResult[] {
   const normalizedQuery = normalizeText(query);

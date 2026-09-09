@@ -54,9 +54,13 @@ test('the server introduces itself and lists read-only tools', async () => {
   expect(tools.map((tool: any) => tool.name).sort()).toEqual([
     'hatebu_domains',
     'hatebu_list',
+    'hatebu_lookup',
+    'hatebu_random',
     'hatebu_search',
     'hatebu_stats',
+    'hatebu_tagged',
     'hatebu_tags',
+    'hatebu_timeline',
     'hatebu_words',
   ]);
   for (const tool of tools) {
@@ -209,4 +213,57 @@ test('missing_dates says which days of the range were never synced', async () =>
   expect(payload.missing_dates).toHaveLength(26);
   expect(payload.missing_dates).toContain('2026-02-01');
   expect(payload.missing_dates).not.toContain('2026-02-18');
+});
+
+test('the archive tools answer the same as their commands', async () => {
+  const ws = createTempWorkspace();
+  seedArchive(ws);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_lookup', arguments: { url_or_domain: 'zenn.dev' } },
+    { name: 'hatebu_timeline', arguments: { by: 'year', query: '地図' } },
+    { name: 'hatebu_tagged', arguments: { tag: 'AI' } },
+  ]);
+
+  const lookedUp = toolJson(responses[0]);
+  expect(lookedUp.kind).toBe('domain');
+  expect(lookedUp.match_count).toBe(2);
+  expect(lookedUp.first_bookmarked).toBe('2026-02-18');
+
+  const timeline = toolJson(responses[1]);
+  expect(timeline.total).toBe(3);
+  expect(timeline.rows).toEqual([
+    { period: '2019', count: 1 },
+    { period: '2026', count: 2 },
+  ]);
+
+  const tagged = toolJson(responses[2]);
+  expect(tagged.match_count).toBe(2);
+  expect(tagged.bookmarks[0].dateKey).toBe('2026-02-19');
+});
+
+test('hatebu_lookup reports a page that is not in the archive', async () => {
+  const ws = createTempWorkspace();
+  seedArchive(ws);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_lookup', arguments: { url_or_domain: 'https://zenn.dev/articles/never' } },
+  ]);
+
+  const payload = toolJson(responses[0]);
+  expect(payload.kind).toBe('url');
+  expect(payload.bookmarked).toBe(false);
+  expect(payload.same_domain_count).toBe(2);
+});
+
+test('a whole-archive tool rejects a bound it cannot read', async () => {
+  const ws = createTempWorkspace();
+  seedArchive(ws);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_timeline', arguments: { from: 'January' } },
+  ]);
+
+  expect(responses[0].result.isError).toBe(true);
+  expect(toolText(responses[0])).toContain('is not a day');
 });

@@ -26,6 +26,12 @@ import { resolveHatenaUser } from './credentials';
 import { searchBookmarks, type SearchField } from './searchIndex';
 import { loadDay } from './services/bookmarks';
 import {
+  buildTimeline,
+  findBookmarks,
+  lookup,
+  randomBookmarks,
+} from './services/queries';
+import {
   buildDomainsSummary,
   buildStatsSummary,
   buildTagsSummary,
@@ -73,6 +79,15 @@ function parseDay(date: string): Date {
     throw new Error(DATE_OPTION_PROBLEMS[parsed.problem].replace('--date', 'date'));
   }
   return parsed.value;
+}
+
+/** The open-ended yyyy-mm-dd bounds of a whole-archive question. */
+function parseBound(value?: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (!isDateKey(value)) {
+    throw new Error(`'${value}' is not a day. Pass a date as yyyy-mm-dd.`);
+  }
+  return value;
 }
 
 function asJsonResult(payload: unknown) {
@@ -328,6 +343,138 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_lookup',
+    {
+      title: 'Has the user bookmarked this',
+      description:
+        'Whether a page or a site is in the archive, and when. Give a full URL to ask ' +
+        'about one page; give a bare hostname to ask about a site, which also covers ' +
+        'its subdomains. A URL that was never bookmarked still reports how much else ' +
+        'came from the same site. The archive goes back to the beginning of the ' +
+        "user's account, so a negative answer here is meaningful.",
+      inputSchema: {
+        url_or_domain: z
+          .string()
+          .min(1)
+          .describe('A full URL such as https://example.com/a, or a hostname such as example.com'),
+        limit: z.number().int().min(1).max(100).default(10).describe('Most bookmarks to return'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_lookup', async ({ url_or_domain, limit }) => {
+      const result = lookup(url_or_domain, limit);
+      return asJsonResult({
+        input: result.input,
+        kind: result.kind,
+        ...(result.domain ? { domain: result.domain } : {}),
+        bookmarked: result.bookmarked,
+        match_count: result.matchCount,
+        ...(result.first ? { first_bookmarked: result.first.dateKey } : {}),
+        ...(result.last ? { last_bookmarked: result.last.dateKey } : {}),
+        ...(result.sameDomainCount === undefined
+          ? {}
+          : { same_domain_count: result.sameDomainCount }),
+        bookmarks: result.entries,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_timeline',
+    {
+      title: 'How a subject came and went over the years',
+      description:
+        'Bookmarks counted per year or per month, optionally about one subject. This is ' +
+        'the tool for when an interest started, whether it is still going, and how it ' +
+        'compares with another year. Filter by tag, by site, or by text in the title or ' +
+        'URL. With no filter it is the shape of the whole archive.',
+      inputSchema: {
+        by: z.enum(['year', 'month']).default('year').describe('Bucket size'),
+        tag: z.string().optional().describe('Only bookmarks under this tag'),
+        domain: z
+          .string()
+          .optional()
+          .describe('Only bookmarks from this site, subdomains included'),
+        query: z
+          .string()
+          .optional()
+          .describe('Only bookmarks whose title or URL contains this text'),
+        from: z.string().optional().describe('Earliest day to count, as yyyy-mm-dd'),
+        to: z.string().optional().describe('Latest day to count, as yyyy-mm-dd'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_timeline', async ({ by, tag, domain, query, from, to }) => {
+      const filter = { tag, domain, query, from: parseBound(from), to: parseBound(to) };
+      const timeline = buildTimeline(filter, by);
+      return asJsonResult({
+        by,
+        filter: {
+          ...(tag ? { tag } : {}),
+          ...(domain ? { domain } : {}),
+          ...(query ? { query } : {}),
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {}),
+        },
+        total: timeline.total,
+        rows: timeline.rows,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_tagged',
+    {
+      title: 'The bookmarks under one tag',
+      description:
+        'Every bookmark the user filed under a tag, newest first. Tags only exist from ' +
+        '2025 onwards, so use hatebu_timeline with a query for an older subject.',
+      inputSchema: {
+        tag: z.string().min(1).describe('The tag, without a leading #'),
+        limit: z.number().int().min(1).max(100).default(20).describe('Most bookmarks to return'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_tagged', async ({ tag, limit }) => {
+      const found = findBookmarks({ tag }, limit);
+      return asJsonResult({
+        tag,
+        match_count: found.matchCount,
+        ...(found.first ? { first_bookmarked: found.first.dateKey } : {}),
+        ...(found.last ? { last_bookmarked: found.last.dateKey } : {}),
+        bookmarks: found.entries,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_random',
+    {
+      title: 'A few bookmarks at random',
+      description:
+        'A handful of bookmarks drawn at random from the archive, optionally filtered ' +
+        'by tag, site, text or a date range. For digging out something from years ago ' +
+        'that nothing would have thought to ask for.',
+      inputSchema: {
+        count: z.number().int().min(1).max(50).default(5).describe('How many to draw'),
+        tag: z.string().optional().describe('Only bookmarks under this tag'),
+        domain: z.string().optional().describe('Only bookmarks from this site'),
+        query: z.string().optional().describe('Only bookmarks whose title or URL contains this'),
+        from: z.string().optional().describe('Earliest day to draw from, as yyyy-mm-dd'),
+        to: z.string().optional().describe('Latest day to draw from, as yyyy-mm-dd'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_random', async ({ count, tag, domain, query, from, to }) => {
+      const drawn = randomBookmarks(
+        { tag, domain, query, from: parseBound(from), to: parseBound(to) },
+        count,
+      );
+      return asJsonResult({ match_count: drawn.matchCount, bookmarks: drawn.entries });
     }),
   );
 

@@ -7,6 +7,10 @@ import { registerDomainsCommand } from './commands/domains';
 import { registerTagsCommand } from './commands/tags';
 import { registerWordsCommand } from './commands/words';
 import { registerStatsCommand } from './commands/stats';
+import { registerLookupCommand } from './commands/lookup';
+import { registerTimelineCommand } from './commands/timeline';
+import { registerTaggedCommand } from './commands/tagged';
+import { registerRandomCommand } from './commands/random';
 import { registerSyncCommand } from './commands/sync';
 import { registerImportCommand } from './commands/import';
 
@@ -35,6 +39,10 @@ registerDomainsCommand(program);
 registerTagsCommand(program);
 registerWordsCommand(program);
 registerStatsCommand(program);
+registerLookupCommand(program);
+registerTimelineCommand(program);
+registerTaggedCommand(program);
+registerRandomCommand(program);
 registerSyncCommand(program);
 registerImportCommand(program);
 

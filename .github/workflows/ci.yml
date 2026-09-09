@@ -87,3 +87,7 @@ jobs:
           grep -q '"hatebu_tags"' handshake.jsonl
           grep -q '"hatebu_words"' handshake.jsonl
           grep -q '"hatebu_stats"' handshake.jsonl
+          grep -q '"hatebu_lookup"' handshake.jsonl
+          grep -q '"hatebu_timeline"' handshake.jsonl
+          grep -q '"hatebu_tagged"' handshake.jsonl
+          grep -q '"hatebu_random"' handshake.jsonl
