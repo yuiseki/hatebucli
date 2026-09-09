@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20.x', '22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run
+
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.x'
+          cache: npm
+      - run: npm ci
+      - name: Pack the published tarball
+        run: |
+          mkdir -p /tmp/pack
+          npm pack --pack-destination /tmp/pack
+
+      # Installed without hoisting, so the CLI can only resolve the
+      # dependencies it declares itself. A module that happens to be pulled in
+      # by vitest or by another dependency today is not available here.
+      - name: Install the tarball with no hoisting
+        run: |
+          mkdir -p /tmp/smoke
+          cd /tmp/smoke
+          npm init -y
+          npm install --omit=dev --install-strategy=nested /tmp/pack/*.tgz
+
+      - name: The packed CLI runs on its declared dependencies alone
+        run: |
+          cd /tmp/smoke
+          ./node_modules/.bin/hatebu --help
+
+      # The tokenizer is a wasm module loaded only by `words`, and only when
+      # there is a title to tokenize, so --help alone would not notice it
+      # missing from the packed dependencies. A seeded cache day gives it one
+      # without needing an account or the network.
+      - name: The tokenizer loads under that install
+        run: |
+          cd /tmp/smoke
+          mkdir -p /tmp/smoke/cache/hatebucli/1970/01
+          printf '%s' '[{"title":"\u5730\u56f3\u306e\u8a71\u3092\u3059\u308b","link":"https://example.com/a","date":"1970-01-01T00:00:00.000Z","description":"","tags":[]}]' \
+            > /tmp/smoke/cache/hatebucli/1970/01/01.json
+          XDG_CACHE_HOME=/tmp/smoke/cache ./node_modules/.bin/hatebu words --date 1970-01-01 -j | tee words.json
+          grep -q '"word"' words.json

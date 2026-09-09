@@ -10,10 +10,19 @@ import { extractWordsFromJapaneseText } from './words';
 
 const program = new Command();
 
+/**
+ * The published tarball always contains package.json, and dist/ sits one level
+ * below it, so this holds both in the repository and once installed. Hardcoding
+ * the version here is how it drifts from what npm actually shipped.
+ */
+function cliVersion(): string {
+  return require('../package.json').version as string;
+}
+
 program
   .name('hatebu')
   .description('Hatena Bookmark CLI for AI Secretary')
-  .version('1.0.0');
+  .version(cliVersion());
 
 // Config Command
 const configCmd = program.command('config').description('Manage configuration');
