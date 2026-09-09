@@ -27,6 +27,7 @@ Document the current command set exactly as implemented.
   - `-d, --date <yyyy-mm-dd>`
   - `-j, --json`
 - Behavior:
+  - An invalid `--date` exits 1 rather than throwing.
   - Today: fetch fresh data from API.
   - Non-today: read from local cache.
 
@@ -38,8 +39,7 @@ Document the current command set exactly as implemented.
   - `-l, --limit <number>` (default: `10`)
   - `-j, --json`
 - Behavior:
-  - Searches local cache only.
-  - Builds/refreshes per-day local index under `index/v1` on demand.
+  - Searches local cache only, by scanning it. See [ADR 005](005-search-by-scanning.md).
 
 ### 5. `domains` Command
 - `hatebu domains`
@@ -104,6 +104,9 @@ Document the current command set exactly as implemented.
   - `--days <number>` (default: `1`)
   - `-d, --date <yyyy-mm-dd>`
 - Behavior:
+  - `--date` and `--days` cannot be used together.
+  - Both are validated: a date that is not a real day, or a day count that is
+    not a positive integer, exits 1.
   - `--date`: fetch that date and save cache.
   - no `--date`: fetch yesterday..N days ago and save each day.
 
@@ -111,6 +114,34 @@ Document the current command set exactly as implemented.
 - `hatebu import <dir>`
 - Expects legacy layout under `<dir>/YYYY/MM/*.json`
 - Copies files into current cache directory.
+
+### 11. `lookup` Command
+- `hatebu lookup <url-or-domain>`
+- Options: `-l, --limit <number>` (default: `10`), `-j, --json`
+- Behavior:
+  - A full URL asks about one page; a bare hostname asks about a site and
+    covers its subdomains.
+  - Scheme and a trailing slash are ignored when comparing pages.
+  - A URL that was never bookmarked reports `same_domain_count`.
+
+### 12. `timeline` Command
+- `hatebu timeline`
+- Options: `--by <year|month>` (default: `year`), `--tag`, `--domain`,
+  `--query`, `--from <yyyy-mm-dd>`, `--to <yyyy-mm-dd>`, `--bars`, `-j, --json`
+- Behavior: counts matching bookmarks per bucket, oldest first.
+
+### 13. `tagged` Command
+- `hatebu tagged <tag>`
+- Options: `-l, --limit <number>` (default: `20`), `-j, --json`
+
+### 14. `random` Command
+- `hatebu random`
+- Options: `-n, --count <number>` (default: `5`), `--tag`, `--domain`,
+  `--query`, `--from`, `--to`, `-j, --json`
+
+### 15. MCP server
+- `hatebu --mcp-server` (also `--mcp`, `mcp-server`, `mcp`)
+- See [ADR 007](007-mcp-server.md).
 
 ## Consequences
 - Documentation now matches actual runtime behavior.

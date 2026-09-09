@@ -1,7 +1,10 @@
 # ADR 004: Local Search Index for `hatebu search`
 
 ## Status
-Accepted
+Superseded by [ADR 005](005-search-by-scanning.md). The index described here
+was built and used, and then measured: at 381MB against 110MB of bookmarks it
+was both larger and slower than reading the bookmarks themselves. The matching
+rules below are still what `hatebu search` does; only the index is gone.
 
 ## Context
 `hatebucli` currently stores daily bookmarks as JSON cache files (`YYYY/MM/DD.json`) but has no local search command.
