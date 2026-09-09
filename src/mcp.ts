@@ -37,6 +37,7 @@ import {
   buildTagsSummary,
   buildWordsSummary,
   renderStatsMarkdown,
+  toStatsJson,
 } from './services/analytics';
 
 function serverVersion(): string {
@@ -324,24 +325,7 @@ export function createMcpServer(): McpServer {
       return {
         content: [
           { type: 'text' as const, text: renderStatsMarkdown(summary, top) },
-          {
-            type: 'text' as const,
-            text: JSON.stringify(
-              {
-                start: summary.dateRange.startLabel,
-                end: summary.dateRange.endLabel,
-                days: summary.dateRange.days,
-                bookmark_count: summary.bookmarkCount,
-                hour_ranking: summary.hourRanking.filter((row) => row.count > 0).slice(0, top),
-                weekday_ranking: summary.weekdayRanking.filter((row) => row.count > 0),
-                domain_ranking: summary.domainRanking.slice(0, top),
-                tag_ranking: summary.tagRanking.slice(0, top),
-                missing_dates: summary.missingDates,
-              },
-              null,
-              2,
-            ),
-          },
+          { type: 'text' as const, text: JSON.stringify(toStatsJson(summary, top), null, 2) },
         ],
       };
     }),

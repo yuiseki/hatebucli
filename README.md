@@ -33,8 +33,7 @@ today.
 
 ## Commands
 
-Every command that reports bookmarks or rankings takes `-j, --json`. `stats` is
-the exception: it is Markdown by design.
+Every command that reports bookmarks or rankings takes `-j, --json`.
 
 ### One day
 
@@ -91,14 +90,17 @@ the range is the week ending yesterday.
 what a stretch was about even where nothing was tagged. A word counts once per
 bookmark however often the title repeats it.
 
-`stats` puts a window together as Markdown: how much, at what hours, on what
-weekdays, and the sites and tags that led it.
+`stats` puts a window together: how much, at what hours, on what weekdays, and
+the sites and tags that led it. Markdown to read, `--json` to compute from; the
+two are cut the same way, so a bucket nobody bookmarked in is absent from both
+rather than reported as a zero.
 
 | Option | |
 | --- | --- |
 | `--date <yyyy\|yyyy-mm\|yyyy-mm-dd>` | the day the window ends on. Defaults to yesterday |
 | `--days <number>` | window length. Default 7 |
 | `--top <number>` | rows per section. Default 10, capped at 20 |
+| `-j, --json` | |
 
 Each of these reports the days of the range the cache does not hold, so a low
 count can be told apart from a gap in the sync.
@@ -229,8 +231,9 @@ not:
 - Every ranking returns `missing_dates` alongside the numbers, so a model can
   tell a quiet week from an unsynced one.
 - `hatebu_list` says whether the day was in the cache at all.
-- `hatebu_stats` returns the Markdown and the same numbers as JSON, as two
-  blocks: the Markdown to show, the JSON to compute from.
+- `hatebu_stats` returns the Markdown and the JSON as two blocks, so a model
+  gets both without a second call. The JSON is byte for byte what
+  `stats --json` prints.
 - `hatebu_search` drops the `matchedTitleTokens` and `matchedUrlTokens` that
   `--json` returns. Matching is per character, so they are lists of single
   letters, which explain a score to a person and say nothing to a model.

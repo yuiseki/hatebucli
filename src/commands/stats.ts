@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { buildStatsDateRangeFrom, weeklyStatsDateRange, type StatsDateRange } from '../dates';
 import { parseDateOption, parsePositiveIntegerOption } from '../options';
-import { buildStatsSummary, renderStatsMarkdown } from '../services/analytics';
+import { buildStatsSummary, renderStatsMarkdown, toStatsJson } from '../services/analytics';
 
 const MAX_TOP = 20;
 
@@ -22,11 +22,16 @@ export function registerStatsCommand(program: Command): void {
     .option('--date <yyyy|yyyy-mm|yyyy-mm-dd>', 'window end date anchor (default: yesterday)')
     .option('--days <number>', 'window length in days', '7')
     .option('--top <number>', 'rows per section', '10')
+    .option('-j, --json', 'output as JSON')
     .action(async (options) => {
       try {
         const dateRange = buildStatsDateRange(options.date, options.days || '7');
         const top = Math.min(parsePositiveIntegerOption(options.top, '--top'), MAX_TOP);
         const summary = await buildStatsSummary(dateRange);
+        if (options.json) {
+          console.log(JSON.stringify(toStatsJson(summary, top), null, 2));
+          return;
+        }
         console.log(renderStatsMarkdown(summary, top));
       } catch (error: any) {
         console.error('Error building stats:', error.message);

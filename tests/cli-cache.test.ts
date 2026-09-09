@@ -130,3 +130,64 @@ test('import copies a legacy tree into the cache and search finds it', () => {
   expect(found.status).toBe(0);
   expect(JSON.parse(found.stdout)).toHaveLength(1);
 });
+
+test('stats --json carries the same window and numbers as the markdown', () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2026-02-18', [
+    {
+      title: 'One',
+      link: 'https://example.com/a',
+      date: '2026-02-18T09:00:00+09:00',
+      tags: ['alpha'],
+    },
+    {
+      title: 'Two',
+      link: 'https://example.com/b',
+      date: '2026-02-18T21:00:00+09:00',
+    },
+  ]);
+  writeDailyCache(ws.cacheBase, '2026-02-19', [
+    {
+      title: 'Three',
+      link: 'https://news.example.net/c',
+      date: '2026-02-19T09:00:00+09:00',
+      tags: ['alpha'],
+    },
+  ]);
+
+  const args = ['stats', '--date', '2026-02-19', '--days', '3', '--top', '2'];
+  const asJson = runCli(ws.cacheBase, ws.homeDir, [...args, '--json']);
+  expect(asJson.status).toBe(0);
+
+  const parsed = JSON.parse(asJson.stdout);
+  expect(parsed.start).toBe('2026-02-17');
+  expect(parsed.end).toBe('2026-02-19');
+  expect(parsed.days).toBe(3);
+  expect(parsed.bookmark_count).toBe(3);
+  expect(parsed.bookmark_count_with_timestamp).toBe(3);
+  expect(parsed.bookmark_count_with_tags).toBe(2);
+  expect(parsed.total_tag_assignments).toBe(2);
+
+  // Ranked like the markdown, cut to --top, and empty buckets left out.
+  expect(parsed.domain_ranking).toEqual([
+    { domain: 'example.com', count: 2 },
+    { domain: 'news.example.net', count: 1 },
+  ]);
+  expect(parsed.tag_ranking).toEqual([{ tag: 'alpha', count: 2 }]);
+  expect(parsed.hour_ranking).toEqual([
+    { hour: 9, count: 2 },
+    { hour: 21, count: 1 },
+  ]);
+  expect(parsed.weekday_ranking).toEqual([
+    { weekday: 3, label: 'Wed', count: 2 },
+    { weekday: 4, label: 'Thu', count: 1 },
+  ]);
+  expect(parsed.missing_dates).toEqual(['2026-02-17']);
+
+  // The markdown says the same thing, for the same window.
+  const asMarkdown = runCli(ws.cacheBase, ws.homeDir, args);
+  expect(asMarkdown.stdout).toMatch(/Window: 2026-02-17 to 2026-02-19 \(3 days\)/);
+  expect(asMarkdown.stdout).toContain('- example.com: 2');
+  expect(asMarkdown.stdout).toContain('- #alpha: 2');
+  expect(asMarkdown.stdout).toContain('Missing cache dates: 2026-02-17');
+});

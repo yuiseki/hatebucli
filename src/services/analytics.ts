@@ -293,3 +293,35 @@ export function renderStatsMarkdown(summary: StatsSummary, top: number): string 
 
   return lines.join('\n').trimEnd();
 }
+
+/**
+ * The stats summary as JSON, for `stats --json` and for the MCP tool. One
+ * function so the two cannot drift, and so the rows are cut the same way the
+ * Markdown cuts them: `--top` applies, and a bucket nobody bookmarked in is
+ * left out rather than reported as a zero.
+ */
+export function toStatsJson(summary: StatsSummary, top: number) {
+  return {
+    start: summary.dateRange.startLabel,
+    end: summary.dateRange.endLabel,
+    days: summary.dateRange.days,
+    bookmark_count: summary.bookmarkCount,
+    bookmark_count_with_timestamp: summary.bookmarkCountWithTimestamp,
+    bookmark_count_with_domain: summary.bookmarkCountWithDomain,
+    bookmark_count_with_tags: summary.bookmarkCountWithTags,
+    total_tag_assignments: summary.totalTagAssignments,
+    hour_ranking: summary.hourRanking.filter((row) => row.count > 0).slice(0, top),
+    weekday_ranking: summary.weekdayRanking
+      .filter((row) => row.count > 0)
+      // Seven is the whole week, so --top never cuts it. The label saves every
+      // reader from having to know that 0 is Sunday.
+      .map((row) => ({
+        weekday: row.weekday,
+        label: WEEKDAY_LABELS[row.weekday] || String(row.weekday),
+        count: row.count,
+      })),
+    domain_ranking: summary.domainRanking.slice(0, top),
+    tag_ranking: summary.tagRanking.slice(0, top),
+    missing_dates: summary.missingDates,
+  };
+}

@@ -267,3 +267,19 @@ test('a whole-archive tool rejects a bound it cannot read', async () => {
   expect(responses[0].result.isError).toBe(true);
   expect(toolText(responses[0])).toContain('is not a day');
 });
+
+test('hatebu_stats returns exactly what stats --json prints', async () => {
+  const ws = createTempWorkspace();
+  seedArchive(ws);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_stats', arguments: { date: '2026-02-19', days: 2, top: 5 } },
+  ]);
+
+  const fromCli = JSON.parse(
+    runCli(ws.cacheBase, ws.homeDir, [
+      'stats', '--date', '2026-02-19', '--days', '2', '--top', '5', '--json',
+    ]).stdout,
+  );
+  expect(JSON.parse(responses[0].result.content[1].text)).toEqual(fromCli);
+});

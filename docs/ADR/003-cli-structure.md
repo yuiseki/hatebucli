@@ -88,11 +88,13 @@ Document the current command set exactly as implemented.
 - Default range:
   - from 8 days ago to yesterday
 - Default behavior:
-  - weekly Markdown summary.
+  - weekly Markdown summary. `--json` returns the same numbers, and is the same
+    payload the `hatebu_stats` MCP tool returns alongside the Markdown.
 - Options:
   - `--date <yyyy|yyyy-mm|yyyy-mm-dd>` (window end date anchor; default: yesterday)
   - `--days <number>` (default: `7`)
   - `--top <number>` (default: `10`, max: `20`)
+  - `-j, --json`
 - Behavior:
   - Aggregates bookmark time (hour/weekday), domain ranking, and tag ranking from cache.
   - If range includes today, today is fetched from API.
