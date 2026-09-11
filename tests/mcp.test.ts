@@ -85,14 +85,18 @@ test('hatebu_search answers over the whole archive, newest first', async () => {
   const { responses } = await runMcp(ws, [{ name: 'hatebu_search', arguments: { query: '地図' } }]);
   const payload = toolJson(responses[0]);
 
-  expect(payload.result_count).toBe(3);
+  expect(payload.match_count).toBe(3);
+  expect(payload.returned_count).toBe(3);
+  expect(payload.truncated).toBe(false);
   expect(payload.results.map((row: any) => row.dateKey)).toEqual([
     '2026-02-19',
     '2026-02-18',
     '2019-07-04',
   ]);
-  // The index is per character, so the matched tokens would be single letters.
+  // Titles are matched a character at a time, so the matched tokens would be
+  // single letters. Which field matched is worth saying; which letters are not.
   expect(payload.results[0]).not.toHaveProperty('matchedTitleTokens');
+  expect(payload.results[0].matchedIn).toEqual(['title']);
   expect(payload.results[0].link).toBe('https://news.example.net/mapai');
 });
 
@@ -106,11 +110,16 @@ test('hatebu_search honours field, date and limit', async () => {
     { name: 'hatebu_search', arguments: { query: '地図', limit: 1 } },
   ]);
 
-  expect(toolJson(responses[0]).result_count).toBe(2);
+  expect(toolJson(responses[0]).match_count).toBe(2);
   const onOneDay = toolJson(responses[1]);
   expect(onOneDay.date).toBe('2019-07-04');
-  expect(onOneDay.result_count).toBe(1);
-  expect(toolJson(responses[2]).result_count).toBe(1);
+  expect(onOneDay.match_count).toBe(1);
+  // The limit cut the results, and the tool says so rather than letting the
+  // count read as the total.
+  const limited = toolJson(responses[2]);
+  expect(limited.match_count).toBe(3);
+  expect(limited.returned_count).toBe(1);
+  expect(limited.truncated).toBe(true);
 });
 
 test('hatebu_list tells a synced empty day from a day never synced', async () => {
@@ -197,7 +206,7 @@ test('a bad argument is an error on the call, not a dead server', async () => {
   expect(responses[2].result.isError).toBe(true);
   expect(toolText(responses[2])).toContain('today and date cannot be used together');
   expect(responses[3].result.isError).toBeFalsy();
-  expect(toolJson(responses[3]).result_count).toBe(3);
+  expect(toolJson(responses[3]).match_count).toBe(3);
 });
 
 test('missing_dates says which days of the range were never synced', async () => {

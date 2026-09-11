@@ -7,10 +7,13 @@
  * took 4.9s through it against 0.5s for reading every bookmark and looking at
  * it. See docs/ADR/005-search-by-scanning.md.
  *
- * The matching is unchanged, so the same query returns the same rows in the
- * same order. Titles are mostly Japanese, so a query is matched a character at
- * a time: every character of the query has to appear, and a run of them
- * appearing together scores higher.
+ * Each field is matched the way the thing it holds wants to be matched.
+ * Titles are mostly Japanese, which does not put spaces between words, so a
+ * title is matched a character at a time: every character of the query has to
+ * appear, and a run of them appearing together scores higher. URLs are ASCII
+ * with structure, and matching those per character turns a hostname into a set
+ * of letters that any long URL is likely to contain, so a URL is matched as a
+ * substring.
  */
 import { isDateKey } from '../dates';
 import { iterateCachedDays, readCachedDay } from './archive';
@@ -30,8 +33,17 @@ export interface SearchResult {
   date: string;
   description: string;
   score: number;
+  /** Which fields the query was found in. */
+  matchedIn: Array<'title' | 'url'>;
+  /** The characters of the query found in the title. Absent for a URL-only match. */
   matchedTitleTokens: string[];
-  matchedUrlTokens: string[];
+}
+
+export interface SearchOutcome {
+  /** Everything that matched, before the limit was applied. */
+  matchCount: number;
+  /** The best `limit` of them. */
+  results: SearchResult[];
 }
 
 const SYMBOL_OR_PUNCT_CHAR = /[\p{P}\p{S}]/u;
@@ -71,19 +83,23 @@ function matchedTokens(normalizedField: string, queryTokens: string[]): string[]
   return queryTokens.filter((token) => normalizedField.includes(token));
 }
 
-export function searchBookmarks(query: string, options: SearchOptions = {}): SearchResult[] {
-  if (normalizeText(query).trim().length === 0) return [];
+export function searchBookmarks(query: string, options: SearchOptions = {}): SearchOutcome {
+  if (normalizeText(query).trim().length === 0) return { matchCount: 0, results: [] };
 
   const field = options.field || 'all';
   const limit = options.limit && options.limit > 0 ? options.limit : 10;
   const queryTokens = tokenizeUnigram(query);
-  if (queryTokens.length === 0) return [];
+  if (queryTokens.length === 0) return { matchCount: 0, results: [] };
 
   const compactQuery = normalizeForContains(query);
+  // A URL is matched on the text as typed, so arxiv.org means that host and
+  // not the letters it is made of.
+  const urlQuery = normalizeText(query).trim();
   const wantsTitle = field === 'all' || field === 'title';
   const wantsUrl = field === 'all' || field === 'url';
 
   const results: SearchResult[] = [];
+  let matchCount = 0;
 
   const days = options.dateKey
     ? isDateKey(options.dateKey)
@@ -97,26 +113,22 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
       const link = bookmark.link || '';
 
       const normalizedTitle = normalizeText(title);
-      const normalizedLink = normalizeText(link);
+      const titleTokens = wantsTitle ? matchedTokens(normalizedTitle, queryTokens) : [];
+      const titleMatches = wantsTitle && titleTokens.length === queryTokens.length;
+      const urlMatches = wantsUrl && normalizeText(link).includes(urlQuery);
+      if (!titleMatches && !urlMatches) continue;
 
-      const titleTokens = matchedTokens(normalizedTitle, queryTokens);
-      const urlTokens = matchedTokens(normalizedLink, queryTokens);
+      matchCount += 1;
 
-      const matchesAll = field === 'title'
-        ? titleTokens.length === queryTokens.length
-        : field === 'url'
-          ? urlTokens.length === queryTokens.length
-          : new Set([...titleTokens, ...urlTokens]).size === queryTokens.length;
-      if (!matchesAll) continue;
-
-      let score = titleTokens.length * 2 + urlTokens.length;
-      if (compactQuery.length > 0) {
-        if (wantsTitle && normalizeForContains(title).includes(compactQuery)) {
+      let score = 0;
+      if (titleMatches) {
+        score += titleTokens.length * 2;
+        if (compactQuery.length > 0 && normalizeForContains(title).includes(compactQuery)) {
           score += 4;
         }
-        if (wantsUrl && normalizeForContains(link).includes(compactQuery)) {
-          score += 2;
-        }
+      }
+      if (urlMatches) {
+        score += 2;
       }
 
       results.push({
@@ -126,8 +138,11 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
         date: bookmark.date || `${day.dateKey}T00:00:00Z`,
         description: bookmark.description || '',
         score,
-        matchedTitleTokens: [...titleTokens].sort(),
-        matchedUrlTokens: [...urlTokens].sort(),
+        matchedIn: [
+          ...(titleMatches ? ['title' as const] : []),
+          ...(urlMatches ? ['url' as const] : []),
+        ],
+        matchedTitleTokens: titleMatches ? [...titleTokens].sort() : [],
       });
     }
   }
@@ -138,5 +153,5 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
     return a.title.localeCompare(b.title, 'ja');
   });
 
-  return results.slice(0, limit);
+  return { matchCount, results: results.slice(0, limit) };
 }

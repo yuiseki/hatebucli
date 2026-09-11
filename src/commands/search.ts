@@ -34,7 +34,7 @@ export function registerSearchCommand(program: Command): void {
         process.exit(1);
       }
 
-      const results = searchBookmarks(normalizedQuery, {
+      const { matchCount, results } = searchBookmarks(normalizedQuery, {
         dateKey: options.date,
         field,
         limit,
@@ -58,5 +58,9 @@ export function registerSearchCommand(program: Command): void {
         console.log(`${index + 1}. [${result.dateKey}] ${result.title}`);
         console.log(`   ${result.link}`);
       });
+      if (matchCount > results.length) {
+        // Without this, a limit that cut the results reads as the total.
+        console.log(`(showing ${results.length} of ${matchCount})`);
+      }
     });
 }

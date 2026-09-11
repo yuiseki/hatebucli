@@ -60,9 +60,16 @@ hatebu search zenn.dev --field url
 hatebu search 地図 --date 2026-02-18 -l 50
 ```
 
-Titles are mostly Japanese, so a query is matched a character at a time: every
-character has to appear, and a run of them appearing together scores higher.
-Results are ordered by score, then newest first.
+Each field is matched the way the thing it holds wants to be matched. A title
+is mostly Japanese, which does not put spaces between words, so it is matched a
+character at a time: every character has to appear, and a run of them appearing
+together scores higher. A URL is ASCII with structure, so it is matched as a
+substring: `arxiv.org` means that host, not the letters it is spelled with.
+Results are ordered by score, then newest first, and the last line says how many
+matched when the limit cut them.
+
+To count what came from a site, use `hatebu lookup` instead: it matches the
+hostname, where a URL search matches the text of the URL anywhere in it.
 
 | Option | |
 | --- | --- |
@@ -218,7 +225,7 @@ run.
 
 | Tool | Arguments |
 | --- | --- |
-| `hatebu_search` | `query` (required, up to 200 characters), `field`, `date`, `limit` (default 10, max 100) |
+| `hatebu_search` | `query` (required, up to 200 characters), `field`, `date`, `limit` (default 10, max 100). Returns `match_count` and `returned_count` |
 | `hatebu_list` | `date` (defaults to today) |
 | `hatebu_domains` | `date`, `today`, `limit` |
 | `hatebu_tags` | `date`, `today`, `limit` |
@@ -239,9 +246,11 @@ not:
 - `hatebu_stats` returns the Markdown and the JSON as two blocks, so a model
   gets both without a second call. The JSON is byte for byte what
   `stats --json` prints.
-- `hatebu_search` drops the `matchedTitleTokens` and `matchedUrlTokens` that
-  `--json` returns. Matching is per character, so they are lists of single
-  letters, which explain a score to a person and say nothing to a model.
+- `hatebu_search` reports `match_count` as well as `returned_count`, so a
+  question about how many were bookmarked is not answered by counting rows the
+  limit allowed through. It drops the `matchedTitleTokens` that `--json`
+  returns, since a title is matched per character and they are single letters;
+  `matchedIn` stays, because which field matched is worth knowing.
 
 A bad argument comes back as an error on that call. The server keeps answering.
 

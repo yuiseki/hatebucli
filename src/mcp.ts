@@ -140,9 +140,14 @@ export function createMcpServer(): McpServer {
       description:
         'Full-text search over every bookmark the user has cached locally, which goes ' +
         'back to the beginning of their Hatena Bookmark account. Titles are mostly ' +
-        'Japanese and are indexed per character, so a partial word matches. Returns the ' +
-        'title, the URL and the day it was bookmarked. If nothing suitable comes back, ' +
-        'rephrase the query rather than giving up on the first attempt.',
+        'Japanese and are matched a character at a time, so a partial word matches; ' +
+        'URLs are matched as a substring, so arxiv.org means that host. Returns the ' +
+        'title, the URL and the day it was bookmarked, with match_count (everything ' +
+        'that matched) alongside returned_count (what the limit allowed): count from ' +
+        'match_count, never from the length of the results. To count what came from a ' +
+        'site, hatebu_lookup is the better question, because it matches the hostname ' +
+        'rather than the text of the URL. If nothing suitable comes back, rephrase the ' +
+        'query rather than giving up on the first attempt.',
       inputSchema: {
         query: z.string().min(1).max(200).describe('Search keyword'),
         field: z
@@ -172,7 +177,7 @@ export function createMcpServer(): McpServer {
         throw new Error('date must be a valid yyyy-mm-dd.');
       }
 
-      const results = searchBookmarks(normalizedQuery, {
+      const { matchCount, results } = searchBookmarks(normalizedQuery, {
         dateKey: date,
         field: field as SearchField,
         limit,
@@ -181,11 +186,16 @@ export function createMcpServer(): McpServer {
         query: normalizedQuery,
         field,
         ...(date ? { date } : {}),
-        result_count: results.length,
-        // The index is per character, so matchedTitleTokens is a list of single
-        // letters. It explains the score to a human reading the index and says
-        // nothing to a model, so it is dropped rather than sent.
-        results: results.map(({ matchedTitleTokens, matchedUrlTokens, ...result }) => result),
+        // Both numbers, because the second is what a question like "how many
+        // have I bookmarked" is actually asking, and the limit hides it.
+        match_count: matchCount,
+        returned_count: results.length,
+        truncated: matchCount > results.length,
+        // matchedIn stays: it says whether the hit was the title or the URL.
+        // matchedTitleTokens does not: titles are matched a character at a
+        // time, so it is a list of single letters that explains a score to a
+        // person and says nothing to a model.
+        results: results.map(({ matchedTitleTokens, ...result }) => result),
       });
     }),
   );
