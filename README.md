@@ -60,13 +60,11 @@ hatebu search zenn.dev --field url
 hatebu search 地図 --date 2026-02-18 -l 50
 ```
 
-Each field is matched the way the thing it holds wants to be matched. A title
-is mostly Japanese, which does not put spaces between words, so it is matched a
-character at a time: every character has to appear, and a run of them appearing
-together scores higher. A URL is ASCII with structure, so it is matched as a
-substring: `arxiv.org` means that host, not the letters it is spelled with.
-Results are ordered by score, then newest first, and the last line says how many
-matched when the limit cut them.
+A query is one or more terms separated by whitespace, and every term has to
+appear as a substring. Japanese needs no special case: it does not put spaces
+between words, so `地図` finds `地図帳` and `白地図` on its own. `地図 AI` is two
+terms and needs both. Results are ordered by score, then newest first, and the
+last line says how many matched when the limit cut them.
 
 To count what came from a site, use `hatebu lookup` instead: it matches the
 hostname, where a URL search matches the text of the URL anywhere in it.
@@ -248,7 +246,7 @@ not:
   `stats --json` prints.
 - `hatebu_search` reports `match_count` as well as `returned_count`, so a
   question about how many were bookmarked is not answered by counting rows the
-  limit allowed through. It drops the `matchedTitleTokens` that `--json`
+  limit allowed through, `--json`
   returns, since a title is matched per character and they are single letters;
   `matchedIn` stays, because which field matched is worth knowing.
 

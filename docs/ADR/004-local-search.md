@@ -3,8 +3,11 @@
 ## Status
 Superseded by [ADR 005](005-search-by-scanning.md). The index described here
 was built and used, and then measured: at 381MB against 110MB of bookmarks it
-was both larger and slower than reading the bookmarks themselves. The matching
-rules below are still what `hatebu search` does; only the index is gone.
+was both larger and slower than reading the bookmarks themselves. The
+tokenization below was superseded in turn by
+[ADR 009](009-substring-matching.md): unigram matching made `match_count`
+meaningless, and it turned out to buy almost nothing for Japanese, which was
+the reason it existed.
 
 ## Context
 `hatebucli` currently stores daily bookmarks as JSON cache files (`YYYY/MM/DD.json`) but has no local search command.

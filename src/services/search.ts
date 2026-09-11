@@ -7,13 +7,11 @@
  * took 4.9s through it against 0.5s for reading every bookmark and looking at
  * it. See docs/ADR/005-search-by-scanning.md.
  *
- * Each field is matched the way the thing it holds wants to be matched.
- * Titles are mostly Japanese, which does not put spaces between words, so a
- * title is matched a character at a time: every character of the query has to
- * appear, and a run of them appearing together scores higher. URLs are ASCII
- * with structure, and matching those per character turns a hostname into a set
- * of letters that any long URL is likely to contain, so a URL is matched as a
- * substring.
+ * A query is one or more terms separated by whitespace, and every term has to
+ * appear as a substring. Japanese needs no special case: it does not put
+ * spaces between words, so a substring search for 地図 finds 地図帳 and 白地図
+ * on its own. See docs/ADR/009-substring-matching.md for what this replaced
+ * and why.
  */
 import { isDateKey } from '../dates';
 import { iterateCachedDays, readCachedDay } from './archive';
@@ -35,8 +33,6 @@ export interface SearchResult {
   score: number;
   /** Which fields the query was found in. */
   matchedIn: Array<'title' | 'url'>;
-  /** The characters of the query found in the title. Absent for a URL-only match. */
-  matchedTitleTokens: string[];
 }
 
 export interface SearchOutcome {
@@ -46,55 +42,24 @@ export interface SearchOutcome {
   results: SearchResult[];
 }
 
-const SYMBOL_OR_PUNCT_CHAR = /[\p{P}\p{S}]/u;
-
 function normalizeText(value: string): string {
   return value.normalize('NFKC').toLowerCase();
 }
 
-function shouldSkipChar(char: string): boolean {
-  if (char.trim().length === 0) return true;
-  return SYMBOL_OR_PUNCT_CHAR.test(char);
-}
-
-/** The characters of the query, deduplicated, minus whitespace and punctuation. */
-function tokenizeUnigram(value: string): string[] {
-  const tokens = new Set<string>();
-  for (const char of normalizeText(value)) {
-    if (shouldSkipChar(char)) continue;
-    tokens.add(char);
-  }
-  return Array.from(tokens);
-}
-
-/** The same text with the skipped characters removed, for the run-of-characters boost. */
-function normalizeForContains(value: string): string {
-  let compact = '';
-  for (const char of normalizeText(value)) {
-    if (shouldSkipChar(char)) continue;
-    compact += char;
-  }
-  return compact;
-}
-
-function matchedTokens(normalizedField: string, queryTokens: string[]): string[] {
-  // A query token is a single non-skipped character, so membership in the
-  // field's token set is the same question as the normalized text containing it.
-  return queryTokens.filter((token) => normalizedField.includes(token));
+/** The terms of a query: whitespace-separated, normalized, all required. */
+function terms(query: string): string[] {
+  return normalizeText(query)
+    .split(/\s+/)
+    .filter((term) => term.length > 0);
 }
 
 export function searchBookmarks(query: string, options: SearchOptions = {}): SearchOutcome {
-  if (normalizeText(query).trim().length === 0) return { matchCount: 0, results: [] };
+  const queryTerms = terms(query);
+  if (queryTerms.length === 0) return { matchCount: 0, results: [] };
 
   const field = options.field || 'all';
   const limit = options.limit && options.limit > 0 ? options.limit : 10;
-  const queryTokens = tokenizeUnigram(query);
-  if (queryTokens.length === 0) return { matchCount: 0, results: [] };
-
-  const compactQuery = normalizeForContains(query);
-  // A URL is matched on the text as typed, so arxiv.org means that host and
-  // not the letters it is made of.
-  const urlQuery = normalizeText(query).trim();
+  const whole = normalizeText(query).trim();
   const wantsTitle = field === 'all' || field === 'title';
   const wantsUrl = field === 'all' || field === 'url';
 
@@ -111,24 +76,32 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
     for (const bookmark of day.bookmarks) {
       const title = bookmark.title || '';
       const link = bookmark.link || '';
+      const normalizedTitle = wantsTitle ? normalizeText(title) : '';
+      const normalizedLink = wantsUrl ? normalizeText(link) : '';
 
-      const normalizedTitle = normalizeText(title);
-      const titleTokens = wantsTitle ? matchedTokens(normalizedTitle, queryTokens) : [];
-      const titleMatches = wantsTitle && titleTokens.length === queryTokens.length;
-      const urlMatches = wantsUrl && normalizeText(link).includes(urlQuery);
-      if (!titleMatches && !urlMatches) continue;
+      let titleTerms = 0;
+      let urlTerms = 0;
+      let matchesEveryTerm = true;
+      for (const term of queryTerms) {
+        const inTitle = wantsTitle && normalizedTitle.includes(term);
+        const inUrl = wantsUrl && normalizedLink.includes(term);
+        if (!inTitle && !inUrl) {
+          matchesEveryTerm = false;
+          break;
+        }
+        if (inTitle) titleTerms += 1;
+        if (inUrl) urlTerms += 1;
+      }
+      if (!matchesEveryTerm) continue;
 
       matchCount += 1;
 
-      let score = 0;
-      if (titleMatches) {
-        score += titleTokens.length * 2;
-        if (compactQuery.length > 0 && normalizeForContains(title).includes(compactQuery)) {
-          score += 4;
-        }
-      }
-      if (urlMatches) {
-        score += 2;
+      // A term in the title counts for more than one in the URL, and the whole
+      // query appearing as written counts for more than its terms scattered.
+      let score = titleTerms * 2 + urlTerms;
+      if (queryTerms.length > 1) {
+        if (wantsTitle && normalizedTitle.includes(whole)) score += 4;
+        if (wantsUrl && normalizedLink.includes(whole)) score += 2;
       }
 
       results.push({
@@ -139,10 +112,9 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
         description: bookmark.description || '',
         score,
         matchedIn: [
-          ...(titleMatches ? ['title' as const] : []),
-          ...(urlMatches ? ['url' as const] : []),
+          ...(titleTerms > 0 ? ['title' as const] : []),
+          ...(urlTerms > 0 ? ['url' as const] : []),
         ],
-        matchedTitleTokens: titleMatches ? [...titleTokens].sort() : [],
       });
     }
   }

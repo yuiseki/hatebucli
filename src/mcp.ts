@@ -139,15 +139,15 @@ export function createMcpServer(): McpServer {
       title: 'Search the bookmarks',
       description:
         'Full-text search over every bookmark the user has cached locally, which goes ' +
-        'back to the beginning of their Hatena Bookmark account. Titles are mostly ' +
-        'Japanese and are matched a character at a time, so a partial word matches; ' +
-        'URLs are matched as a substring, so arxiv.org means that host. Returns the ' +
-        'title, the URL and the day it was bookmarked, with match_count (everything ' +
-        'that matched) alongside returned_count (what the limit allowed): count from ' +
-        'match_count, never from the length of the results. To count what came from a ' +
-        'site, hatebu_lookup is the better question, because it matches the hostname ' +
-        'rather than the text of the URL. If nothing suitable comes back, rephrase the ' +
-        'query rather than giving up on the first attempt.',
+        'back to the beginning of their Hatena Bookmark account. Whitespace separates ' +
+        'terms and every term has to appear as a substring, in the title or the URL. ' +
+        'Japanese needs no spaces: 地図 finds 地図帳 on its own. Returns the title, the ' +
+        'URL and the day it was bookmarked, with match_count (everything that matched) ' +
+        'alongside returned_count (what the limit allowed): count from match_count, ' +
+        'never from the length of the results. To count what came from a site, ' +
+        'hatebu_lookup is the better question, because it matches the hostname rather ' +
+        'than the text of the URL. If nothing suitable comes back, rephrase the query ' +
+        'rather than giving up on the first attempt.',
       inputSchema: {
         query: z.string().min(1).max(200).describe('Search keyword'),
         field: z
@@ -191,11 +191,7 @@ export function createMcpServer(): McpServer {
         match_count: matchCount,
         returned_count: results.length,
         truncated: matchCount > results.length,
-        // matchedIn stays: it says whether the hit was the title or the URL.
-        // matchedTitleTokens does not: titles are matched a character at a
-        // time, so it is a list of single letters that explains a score to a
-        // person and says nothing to a model.
-        results: results.map(({ matchedTitleTokens, ...result }) => result),
+        results,
       });
     }),
   );

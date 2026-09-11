@@ -31,9 +31,9 @@ common character's posting list names most of the documents in its day.
 `src/services/search.ts` replaces `src/searchIndex.ts`, and nothing writes to
 `index/v1` any more.
 
-The matching is unchanged, deliberately: every character of the query must
-appear, in the title for `--field title`, in the URL for `--field url`, in
-either for `all`; the score is two per title character plus one per URL
+The matching was unchanged at the time, deliberately: every character of the
+query had to appear, in the title for `--field title`, in the URL for
+`--field url`, in either for `all`; the score is two per title character plus one per URL
 character, plus four when the whole query appears as a run in the title and two
 when it does in the URL; ties break newest first, then by title. A test
 compared both implementations over the real archive across several queries,
@@ -43,6 +43,10 @@ What the index did that a scan has to do too is the token membership test. A
 query token is one non-skipped character, so asking whether the normalized
 title contains it is the same question as asking whether it is in that title's
 token set, and it costs one `includes` rather than a set built per document.
+
+[ADR 009](009-substring-matching.md) later changed the matching itself. Keeping
+it identical here was still right: one change at a time is what made it
+possible to assert that removing the index changed nothing.
 
 ## Consequences
 
