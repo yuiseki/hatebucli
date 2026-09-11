@@ -283,3 +283,18 @@ test('hatebu_stats returns exactly what stats --json prints', async () => {
   );
   expect(JSON.parse(responses[0].result.content[1].text)).toEqual(fromCli);
 });
+
+test('every tool call is logged with its arguments and how long it took', async () => {
+  const ws = createTempWorkspace();
+  seedArchive(ws);
+
+  const { stderr } = await runMcp(ws, [
+    { name: 'hatebu_search', arguments: { query: '地図', limit: 2 } },
+    { name: 'hatebu_list', arguments: { date: '2026-13-01' } },
+  ]);
+
+  // Under systemd this is the audit trail, so it has to name the tool, carry
+  // the arguments, and say whether the call worked.
+  expect(stderr).toMatch(/\[hatebu-mcp\] hatebu_search ok \d+ms .*query="地図"/);
+  expect(stderr).toMatch(/\[hatebu-mcp\] hatebu_list failed \d+ms date="2026-13-01"/);
+});

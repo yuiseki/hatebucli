@@ -98,16 +98,35 @@ function asJsonResult(payload: unknown) {
 }
 
 /**
- * Every tool call is announced on stderr. stdout is the protocol, and a server
- * that says nothing at all is indistinguishable from one that has hung.
+ * Every tool call is announced on stderr, with what it was asked and how long
+ * it took. stdout is the protocol, and a server that says nothing at all is
+ * indistinguishable from one that has hung.
+ *
+ * Under systemd this is the audit trail: which tool, which arguments, and
+ * whether it worked. The shape matches gyazocli's, so one grep reads both.
+ * Arguments are included, which means search terms end up in the journal.
  */
 function logged<Args, Result>(
   name: string,
   handler: (args: Args) => Promise<Result>,
 ): (args: Args) => Promise<Result> {
   return async (args: Args) => {
-    console.error(`[hatebu-mcp] ${name} ${JSON.stringify(args)}`);
-    return handler(args);
+    const startedAt = Date.now();
+    const given = Object.entries((args || {}) as Record<string, unknown>)
+      .filter(([, value]) => value !== undefined && value !== false)
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join(' ');
+    try {
+      const result = await handler(args);
+      console.error(`[hatebu-mcp] ${name} ok ${Date.now() - startedAt}ms ${given}`.trimEnd());
+      return result;
+    } catch (error: any) {
+      console.error(
+        `[hatebu-mcp] ${name} failed ${Date.now() - startedAt}ms ${given}`.trimEnd(),
+        `- ${error?.message || error}`,
+      );
+      throw error;
+    }
   };
 }
 
