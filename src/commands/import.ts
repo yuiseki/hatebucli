@@ -9,7 +9,7 @@ export function registerImportCommand(program: Command): void {
     .description('Import legacy bookmarks from a directory (e.g., hatebu-ai/public/data)')
     .action(async (dir) => {
       const sourceDir = path.resolve(dir);
-      const targetDir = getCacheDir();
+      const targetDir = getCacheDir({ create: true });
       console.log(`Importing legacy data from ${sourceDir} to ${targetDir}...`);
 
       if (!fs.existsSync(sourceDir)) {
