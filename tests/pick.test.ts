@@ -60,7 +60,8 @@ test('pick lists a day newest first, numbered, and marks what is already chosen'
   const ws = createTempWorkspace();
   seed(ws);
 
-  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12']);
+  // --all because this day is already decided; the listing is what is tested.
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12', '--all']);
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/1\. .*三本目/);
   expect(result.stdout).toMatch(/2\. .*二本目/);
@@ -130,6 +131,83 @@ test('pick --monthly offers the weekly bests of the month', () => {
   expect(parsed.tag).toBe('monthly_best');
   // The month, and only the month.
   expect(parsed.candidates.map((row: any) => row.title)).toEqual(['先週の一本']);
+});
+
+test('a round that is already decided shows the choice and stops', () => {
+  const ws = createTempWorkspace();
+  seed(ws);
+
+  // 2026-09-12 already has a daily_best, so there is nothing to choose.
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12']);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('二本目');
+  expect(result.stdout).toContain('https://b.hatena.ne.jp/entry/s/example.com/2');
+  // The other candidates are not listed.
+  expect(result.stdout).not.toContain('三本目');
+  expect(result.stdout).not.toContain('一本目');
+  // And it says how to see them anyway.
+  expect(result.stdout).toMatch(/--all/);
+});
+
+test('--all lists the candidates even when the round is decided', () => {
+  const ws = createTempWorkspace();
+  seed(ws);
+
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12', '--all']);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toMatch(/1\. .*三本目/);
+  expect(result.stdout).toMatch(/2\..*daily_best/);
+});
+
+test('a number still resolves when the round is decided', () => {
+  const ws = createTempWorkspace();
+  seed(ws);
+
+  // Changing your mind is allowed: the numbering is the same list as --all.
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12', '1']);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('三本目');
+  expect(result.stdout).toContain('https://b.hatena.ne.jp/entry/s/example.com/3');
+});
+
+test('the decided round says so in JSON too', () => {
+  const ws = createTempWorkspace();
+  seed(ws);
+
+  const parsed = JSON.parse(
+    runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-12', '--json']).stdout,
+  );
+  expect(parsed.decided).toBe(true);
+  expect(parsed.chosen).toHaveLength(1);
+  expect(parsed.chosen[0].title).toBe('二本目');
+  expect(parsed.chosen[0].entry_url).toBe('https://b.hatena.ne.jp/entry/s/example.com/2');
+  expect(parsed.candidate_count).toBe(3);
+  expect(parsed.candidates).toBeUndefined();
+});
+
+test('two bookmarks carrying the tag are both shown', () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2026-09-11', [
+    {
+      title: '片方',
+      link: 'https://example.com/a',
+      date: '2026-09-11T09:00:00+09:00',
+      tags: ['daily_best'],
+    },
+    {
+      title: 'もう片方',
+      link: 'https://example.com/b',
+      date: '2026-09-11T10:00:00+09:00',
+      tags: ['daily_best'],
+    },
+  ]);
+
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-11']);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('片方');
+  expect(result.stdout).toContain('もう片方');
+  // Two is not what the round is for, so it says so rather than picking one.
+  expect(result.stdout).toMatch(/2 bookmarks carry daily_best/);
 });
 
 test('one candidate is one candidate', () => {

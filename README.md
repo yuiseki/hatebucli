@@ -186,9 +186,11 @@ makes the weekly round able to read what the daily round chose:
 | `pick --weekly` | `daily_best` of the last seven days | `weekly_best` |
 | `pick --monthly` | `weekly_best` of the month | `monthly_best` |
 
-A candidate that already carries the tag is marked, so a finished day looks
-different from an untouched one. See [ADR 011](docs/ADR/011-best-of-rounds.md)
-for why this does not go through the write API.
+A round that is already decided shows what was chosen and stops, rather than
+asking you to read the day again. `--all` lists the candidates anyway, with the
+chosen one marked, and a number still resolves against that list if you change
+your mind. See [ADR 011](docs/ADR/011-best-of-rounds.md) for why this does not
+go through the write API.
 
 ### Filling the cache
 

@@ -33,6 +33,7 @@ export function registerPickCommand(program: Command): void {
     .option('-d, --date <yyyy-mm-dd|yyyy-mm>', 'the day, or the month for --monthly')
     .option('--weekly', 'choose a weekly_best from the week of daily_best')
     .option('--monthly', 'choose a monthly_best from the month of weekly_best')
+    .option('--all', 'list the candidates even when the round is already decided')
     .option('-j, --json', 'output as JSON')
     .action((numberArg, options) => {
       const round: Round = options.monthly ? 'monthly' : options.weekly ? 'weekly' : 'daily';
@@ -45,6 +46,13 @@ export function registerPickCommand(program: Command): void {
       const candidates = collectCandidates(round, window);
 
       if (numberArg === undefined) {
+        // A round that is already decided has nothing to choose, so it shows
+        // what was chosen instead of eighty-six candidates to read again.
+        const chosen = candidates.filter((candidate) => candidate.alreadyTagged);
+        if (chosen.length > 0 && !options.all) {
+          reportDecided(round, window, chosen, candidates.length, Boolean(options.json));
+          return;
+        }
         report(round, window, candidates, Boolean(options.json));
         return;
       }
@@ -173,6 +181,49 @@ function collectCandidates(round: Round, window: Window): Candidate[] {
 function readDay(dateKey: string): ArchiveEntry[] {
   const bookmarks = readCachedDay(dateKey) ?? [];
   return bookmarks.map((bookmark) => ({ ...bookmark, dateKey }));
+}
+
+function reportDecided(
+  round: Round,
+  window: Window,
+  chosen: Candidate[],
+  candidateCount: number,
+  asJson: boolean,
+): void {
+  const tag = ROUNDS[round].tag;
+
+  if (asJson) {
+    console.log(JSON.stringify({
+      round,
+      tag,
+      from: window.from,
+      to: window.to,
+      decided: true,
+      candidate_count: candidateCount,
+      chosen: chosen.map((candidate) => ({
+        title: candidate.title,
+        link: candidate.link,
+        date: candidate.dateKey,
+        domain: extractDomain(candidate.link),
+        entry_url: candidate.entryUrl,
+      })),
+    }, null, 2));
+    return;
+  }
+
+  console.log(
+    chosen.length === 1
+      ? `${window.label} already has its ${tag}.`
+      : `${window.label}: ${chosen.length} bookmarks carry ${tag}.`,
+  );
+  for (const candidate of chosen) {
+    console.log('');
+    console.log(candidate.title);
+    console.log(candidate.link);
+    if (candidate.entryUrl) console.log(candidate.entryUrl);
+  }
+  console.log('');
+  console.log(`\`hatebu pick --all\` lists the ${candidateCount} candidates anyway.`);
 }
 
 function report(round: Round, window: Window, candidates: Candidate[], asJson: boolean): void {

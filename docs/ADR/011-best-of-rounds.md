@@ -46,8 +46,16 @@ somebody else's server.
 
 Candidates are numbered newest first, by when they were bookmarked rather than
 by the order the day is stored in, so a number means the same thing every time
-the list is printed. One that already carries the tag is marked, which is how a
-finished day looks different from an untouched one.
+the list is printed.
+
+A round that is already decided prints the choice and stops. The common case
+for a daily round is a day whose best has been chosen, and eighty-six lines
+that have to be scanned for a marker to find that out is the wrong answer to
+"is this done". `--all` lists them anyway, with the chosen one marked, and a
+number still resolves against that same list, so changing your mind costs
+nothing. Two bookmarks carrying the tag is reported rather than resolved: the
+round is for choosing one, and picking which of the two is right is not the
+CLI's call.
 
 ## Consequences
 
