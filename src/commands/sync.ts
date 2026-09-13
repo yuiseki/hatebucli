@@ -25,6 +25,11 @@ export function registerSyncCommand(program: Command): void {
         }
         console.log(`Syncing bookmarks for ${options.date}...`);
         const bookmarks = await fetchBookmarksByDate(user, targetDate);
+        if (bookmarks === null) {
+          // Caching the failure would replace a good day with an empty one.
+          console.error(`${options.date} could not be fetched; the cache is unchanged.`);
+          process.exit(1);
+        }
         saveCache(targetDate, bookmarks);
         console.log(`Saved ${bookmarks.length} bookmarks.`);
         return;
@@ -32,15 +37,25 @@ export function registerSyncCommand(program: Command): void {
 
       const days = parsePositiveIntegerOption(options.days, '--days');
       console.log(`Syncing bookmarks for the last ${days} days (excluding today)...`);
+      let failed = 0;
       for (let i = 1; i <= days; i++) {
         const targetDate = new Date();
         targetDate.setDate(targetDate.getDate() - i);
-        console.log(`Syncing bookmarks for ${formatDateYmd(targetDate)}...`);
+        const label = formatDateYmd(targetDate);
+        console.log(`Syncing bookmarks for ${label}...`);
         const bookmarks = await fetchBookmarksByDate(user, targetDate);
+        if (bookmarks === null) {
+          console.error(`${label} could not be fetched; the cache is unchanged.`);
+          failed += 1;
+          continue;
+        }
         saveCache(targetDate, bookmarks);
         console.log(`Saved ${bookmarks.length} bookmarks.`);
         // The feed is somebody else's server, so the days are spaced out.
         await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      if (failed > 0) {
+        process.exit(1);
       }
     });
 }

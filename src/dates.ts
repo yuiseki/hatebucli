@@ -211,3 +211,39 @@ export function weeklyStatsDateRange(): StatsDateRange {
     endLabel: formatDateYmd(weekly.end),
   };
 }
+
+/**
+ * The Monday of the week a day falls in.
+ *
+ * Weeks run Monday to Sunday, which is what a week means here and is not what
+ * `getDay()` counts: it puts Sunday at 0, so Sunday has to be pulled back six
+ * days rather than pushed forward one.
+ */
+export function startOfWeek(date: Date): Date {
+  const weekday = date.getDay();
+  const backToMonday = weekday === 0 ? 6 : weekday - 1;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() - backToMonday);
+}
+
+/** The Monday-to-Sunday week a day falls in. */
+export function weekOf(date: Date): { start: Date; end: Date } {
+  const start = startOfWeek(date);
+  return {
+    start,
+    end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6),
+  };
+}
+
+/** The last week that has finished. On a Sunday that is not the week just ending. */
+export function lastCompleteWeek(now: Date = new Date()): { start: Date; end: Date } {
+  const thisMonday = startOfWeek(now);
+  return weekOf(new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 1));
+}
+
+/** The last calendar month that has finished. */
+export function lastCompleteMonth(now: Date = new Date()): { start: Date; end: Date } {
+  return {
+    start: new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0),
+    end: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+  };
+}

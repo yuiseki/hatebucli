@@ -59,6 +59,27 @@ than the reading was. They are all shown, and they are all candidates for the
 round above, so a week with a two-best day simply has more than seven to choose
 from.
 
+## The round fetches before it judges
+
+A tag added on the entry page is invisible until that day is fetched again.
+That is the one way this workflow shows a wrong answer with a straight face: a
+week looks half-finished because the cache predates the tagging, not because
+the days were not chosen. It happened on the first real week.
+
+So `pick` syncs its window first, and only when the cache does not already show
+the round as decided. A decided round costs no requests and answers in 0.1s; an
+undecided week costs its seven days and answers in 4.5s. `--no-sync` reads the
+cache as it stands.
+
+Today is never fetched: it is still being bookmarked into, and the daily round
+defaults to yesterday anyway.
+
+That change exposed an older fault. `fetchBookmarksByDate` returned an empty
+array whether the day was empty or the fetch had failed, and both `sync` and
+the new code cached that empty array over a good day. It now returns null for a
+failure, `sync` reports the day and leaves the cache alone and exits non-zero,
+and `pick` keeps the cached copy and says it did.
+
 ## Consequences
 
 - hatebucli still cannot write to Hatena. The MCP server stays read-only by
@@ -66,8 +87,6 @@ from.
   `SECURE_MCP_TUNNEL.md` makes to justify pointing it at ChatGPT.
 - No credentials, no OAuth, nothing to rotate, and no way for this tool to
   destroy a comment.
-- The round trip costs a sync. A tag added now is invisible to `pick --weekly`
-  until the day is synced again, which for a past day means running `sync`
-  for it.
+- The round trip costs a sync, which `pick` now does for its own window.
 - `pick` never reads today. The day being chosen over is one that has been
   synced, so there is nothing to fetch, and the default is yesterday.

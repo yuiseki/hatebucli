@@ -1,6 +1,13 @@
 import { Command } from 'commander';
-import { formatDateYmd, isDateKey, tryParseDateOption } from '../dates';
-import { DATE_OPTION_PROBLEMS } from '../dates';
+import {
+  DATE_OPTION_PROBLEMS,
+  formatDateYmd,
+  isDateKey,
+  lastCompleteMonth,
+  lastCompleteWeek,
+  tryParseDateOption,
+  weekOf,
+} from '../dates';
 import {
   extractBookmarkTags,
   extractDomain,
@@ -8,8 +15,12 @@ import {
   parseBookmarkTimestamp,
 } from '../format';
 import { parseDateOption } from '../options';
+import { fetchBookmarksByDate } from '../api';
+import { resolveHatenaUser } from '../credentials';
 import { readCachedDay } from '../services/archive';
 import { findBookmarks, type ArchiveEntry } from '../services/queries';
+import { saveCache } from '../storage';
+import { isToday } from '../dates';
 
 /**
  * The rounds, and what each one chooses from. A round reads the tag the
@@ -34,8 +45,9 @@ export function registerPickCommand(program: Command): void {
     .option('--weekly', 'choose a weekly_best from the week of daily_best')
     .option('--monthly', 'choose a monthly_best from the month of weekly_best')
     .option('--all', 'list the candidates even when the round is already decided')
+    .option('--no-sync', 'read the cache as it stands, without fetching the window first')
     .option('-j, --json', 'output as JSON')
-    .action((numberArg, options) => {
+    .action(async (numberArg, options) => {
       const round: Round = options.monthly ? 'monthly' : options.weekly ? 'weekly' : 'daily';
       if (options.weekly && options.monthly) {
         console.error('Error: --weekly and --monthly cannot be used together.');
@@ -43,7 +55,18 @@ export function registerPickCommand(program: Command): void {
       }
 
       const window = resolveWindow(round, options.date);
-      const candidates = collectCandidates(round, window);
+
+      // A tag added on the entry page is invisible until that day is fetched
+      // again, so a round that looks undecided may only look that way. Fetch
+      // the window before saying so; a round the cache already shows as
+      // decided is worth no requests.
+      let candidates = collectCandidates(round, window);
+      if (options.sync && !candidates.some((candidate) => candidate.alreadyTagged)) {
+        const fetched = await syncWindow(window, Boolean(options.json));
+        if (fetched) {
+          candidates = collectCandidates(round, window);
+        }
+      }
 
       if (numberArg === undefined) {
         // A round that is already decided has nothing to choose, so it shows
@@ -104,10 +127,90 @@ export function registerPickCommand(program: Command): void {
 
 type Window = { from: string; to: string; label: string };
 
+/**
+ * The command that produced this listing, so that a number is followed up
+ * against the same list. Without the flags, `hatebu pick <number>` after a
+ * weekly listing resolves against yesterday's daily candidates instead: a
+ * different bookmark, with nothing to say it went wrong.
+ */
+function commandFor(round: Round, window: Window): string {
+  if (round === 'weekly') return `hatebu pick --weekly --date ${window.to}`;
+  if (round === 'monthly') return `hatebu pick --monthly --date ${window.label}`;
+  return `hatebu pick --date ${window.from}`;
+}
+
+/**
+ * Fetches every day of the window, so that tags added since the last sync are
+ * in the cache before the round is judged. Today is skipped: it is still being
+ * bookmarked into, and `sync` will not cache it either.
+ *
+ * Returns false when there is no username to fetch as, in which case the cache
+ * stands as it is.
+ */
+async function syncWindow(window: Window, asJson: boolean): Promise<boolean> {
+  const user = resolveHatenaUser();
+  if (!user) {
+    console.error(
+      'No Hatena username, so this is the cache as it stands. Tags added since the ' +
+        'last sync are not in it. Set one with `hatebu config set username <id>`.',
+    );
+    return false;
+  }
+
+  const days: Date[] = [];
+  for (const dateKey of eachDay(window)) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (isToday(date)) continue;
+    days.push(date);
+  }
+  if (days.length === 0) return false;
+
+  if (!asJson) {
+    console.error(`Fetching ${days.length === 1 ? 'the day' : `${days.length} days`}...`);
+  }
+  let fetched = false;
+  for (const [index, date] of days.entries()) {
+    const bookmarks = await fetchBookmarksByDate(user, date);
+    if (bookmarks === null) {
+      // Keep the day that is cached. An empty answer from a broken fetch is
+      // not the same as a day with nothing in it.
+      console.error(`${formatDateYmd(date)} could not be fetched; using the cached copy.`);
+    } else {
+      saveCache(date, bookmarks);
+      fetched = true;
+    }
+    // The feed is somebody else's server, so the days are spaced out.
+    if (index < days.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  return fetched;
+}
+
+function* eachDay(window: Window): Generator<string> {
+  const [fromYear, fromMonth, fromDay] = window.from.split('-').map(Number);
+  const cursor = new Date(fromYear, fromMonth - 1, fromDay);
+  while (formatDateYmd(cursor) <= window.to) {
+    yield formatDateYmd(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+}
+
 function resolveWindow(round: Round, dateOption: string | undefined): Window {
   if (round === 'monthly') {
-    // A month, so that the weekly bests of that month are the candidates.
-    const parsed = parseDateOption(dateOption ? dateOption.slice(0, 7) : undefined);
+    // A month, so that the weekly bests of that month are the candidates. With
+    // no date it is the last month that has finished, for the same reason the
+    // weekly round does not offer the week still being read.
+    if (dateOption === undefined) {
+      const month = lastCompleteMonth();
+      return {
+        from: formatDateYmd(month.start),
+        to: formatDateYmd(month.end),
+        label: formatDateYmd(month.start).slice(0, 7),
+      };
+    }
+    const parsed = parseDateOption(dateOption.slice(0, 7));
     return {
       from: formatDateYmd(parsed.start),
       to: formatDateYmd(parsed.end),
@@ -115,18 +218,19 @@ function resolveWindow(round: Round, dateOption: string | undefined): Window {
     };
   }
 
-  const day = resolveDay(dateOption);
   if (round === 'daily') {
-    const key = formatDateYmd(day);
+    const key = formatDateYmd(resolveDay(dateOption));
     return { from: key, to: key, label: key };
   }
 
-  // The week ending on the given day, that day included.
-  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 6);
+  // Weeks run Monday to Sunday. A date names the week it falls in; with no
+  // date it is the last week that has finished, because a week still being
+  // read is not one to choose a best from.
+  const week = dateOption === undefined ? lastCompleteWeek() : weekOf(resolveDay(dateOption));
   return {
-    from: formatDateYmd(start),
-    to: formatDateYmd(day),
-    label: `${formatDateYmd(start)}..${formatDateYmd(day)}`,
+    from: formatDateYmd(week.start),
+    to: formatDateYmd(week.end),
+    label: `${formatDateYmd(week.start)}..${formatDateYmd(week.end)}`,
   };
 }
 
@@ -225,7 +329,7 @@ function reportDecided(
     if (candidate.entryUrl) console.log(candidate.entryUrl);
   }
   console.log('');
-  console.log(`\`hatebu pick --all\` lists the ${candidateCount} candidates anyway.`);
+  console.log(`\`${commandFor(round, window)} --all\` lists the ${candidateCount} candidates anyway.`);
 }
 
 function report(round: Round, window: Window, candidates: Candidate[], asJson: boolean): void {
@@ -268,5 +372,5 @@ function report(round: Round, window: Window, candidates: Candidate[], asJson: b
     console.log(`   ${domain ?? candidate.link}${round === 'daily' ? '' : ` / ${candidate.dateKey}`}`);
   });
   console.log('');
-  console.log(`\`hatebu pick <number>\` gives the page to add the tag on.`);
+  console.log(`\`${commandFor(round, window)} <number>\` gives the page to add the tag on.`);
 }

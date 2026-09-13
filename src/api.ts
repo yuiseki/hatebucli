@@ -9,7 +9,16 @@ export interface BookmarkItem {
   tags?: string[];
 }
 
-export async function fetchBookmarksByDate(user: string, date: Date): Promise<BookmarkItem[]> {
+/**
+ * The bookmarks of one day from the feed, or null when the feed could not be
+ * read. Null rather than an empty array on purpose: a day with nothing in it
+ * and a day that could not be fetched look identical otherwise, and the caller
+ * would cache the failure over a good day.
+ */
+export async function fetchBookmarksByDate(
+  user: string,
+  date: Date,
+): Promise<BookmarkItem[] | null> {
   const parser = new Parser({
     customFields: {
       item: [
@@ -53,8 +62,8 @@ export async function fetchBookmarksByDate(user: string, date: Date): Promise<Bo
         tags: Array.from(uniqueTags.values()),
       };
     });
-  } catch (error) {
-    console.error(`Failed to fetch bookmarks for ${dateStr}:`, error);
-    return [];
+  } catch (error: any) {
+    console.error(`Failed to fetch bookmarks for ${dateStr}: ${error?.message || error}`);
+    return null;
   }
 }

@@ -175,16 +175,21 @@ hatebu pick --weekly               # the week's daily_best
 hatebu pick --monthly --date 2026-09
 ```
 
-`pick` writes nothing. It lays out the candidates and gives you the Hatena
+`pick` writes nothing to Hatena. It lays out the candidates and gives you the
 entry page for the one you chose; you add the `daily_best` tag there, the way
-you would add any tag. The next `hatebu sync` brings it back, which is what
-makes the weekly round able to read what the daily round chose:
+you would add any tag. The tag comes back into the cache on the next sync,
+which is what makes the weekly round able to read what the daily round chose:
 
 | round | candidates | tag to add |
 | --- | --- | --- |
 | `pick` | the day's bookmarks | `daily_best` |
 | `pick --weekly` | `daily_best` of the last seven days | `weekly_best` |
 | `pick --monthly` | `weekly_best` of the month | `monthly_best` |
+
+`pick` fetches the days of its window first, unless the cache already shows the
+round as decided, because a tag added on the entry page is invisible until that
+day is fetched again. A decided round costs no requests; an undecided week
+costs its seven days. `--no-sync` reads the cache as it stands.
 
 A round that is already decided shows what was chosen and stops, rather than
 asking you to read the day again. A day may have more than one best; they are

@@ -39,7 +39,12 @@ export async function forEachBookmarkInRange(
       if (!user) {
         user = await ensureHatenaUser();
       }
+      // A feed that could not be read is a missing day, not an empty one.
       bookmarks = await fetchBookmarksByDate(user, date);
+      if (bookmarks === null) {
+        missingDates.push(formatDateYmd(date));
+        continue;
+      }
     } else {
       bookmarks = loadCache(date);
       if (!bookmarks) {
