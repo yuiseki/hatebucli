@@ -1,6 +1,6 @@
 {
   "name": "@yuiseki/hatebucli",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Hatena Bookmark CLI for AI Secretary",
   "main": "dist/index.js",
   "bin": {

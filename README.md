@@ -15,8 +15,13 @@ questions without you translating each one into flags.
 
 ## Install
 
+Not on npm yet. Install it from a checkout:
+
 ```bash
-npm i -g @yuiseki/hatebucli
+git clone https://github.com/yuiseki/hatebucli.git
+cd hatebucli
+npm install && npm run build
+npm link            # puts `hatebu` on your PATH
 ```
 
 Needs Node 22.12 or newer. That is where `require()` of an ES module landed,
@@ -204,13 +209,16 @@ Configured in a client:
 {
   "mcpServers": {
     "hatebu": {
-      "command": "npx",
-      "args": ["-y", "@yuiseki/hatebucli", "--mcp-server"],
+      "command": "node",
+      "args": ["/path/to/hatebucli/bin/hatebu.js", "--mcp-server"],
       "env": { "HATENA_USER": "your_username" }
     }
   }
 }
 ```
+
+Once this is on npm the command becomes
+`npx -y @yuiseki/hatebucli --mcp-server`.
 
 Everything except today is answered from the local cache, so run `hatebu sync`
 before pointing a client at it.
@@ -270,13 +278,16 @@ JSON-RPC to it over a pipe, so they cover the framing too. Nothing in them
 touches your real cache or reaches Hatena: the fetching paths run against a
 stub feed served from a second process.
 
-To try a local build as the installed command:
+To unlink a local build again:
 
 ```bash
-npm link
-hatebu --version
 npm unlink -g @yuiseki/hatebucli
 ```
+
+The version in `package.json` is the only way to tell two builds apart, so
+bump it whenever a copy goes anywhere: a global install, a directory a service
+runs from, a tarball. Three copies all claiming the same version is how you end
+up debugging the wrong one.
 
 The decisions behind the shape of this thing are in [docs/ADR](docs/ADR),
 including why search scans instead of keeping an index and why the MCP server
