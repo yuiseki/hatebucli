@@ -53,9 +53,11 @@ for a daily round is a day whose best has been chosen, and eighty-six lines
 that have to be scanned for a marker to find that out is the wrong answer to
 "is this done". `--all` lists them anyway, with the chosen one marked, and a
 number still resolves against that same list, so changing your mind costs
-nothing. Two bookmarks carrying the tag is reported rather than resolved: the
-round is for choosing one, and picking which of the two is right is not the
-CLI's call.
+nothing. More than one bookmark may carry the tag: some days do not narrow to
+one, and a round that refused them would be asking the archive to be tidier
+than the reading was. They are all shown, and they are all candidates for the
+round above, so a week with a two-best day simply has more than seven to choose
+from.
 
 ## Consequences
 

@@ -185,7 +185,7 @@ test('the decided round says so in JSON too', () => {
   expect(parsed.candidates).toBeUndefined();
 });
 
-test('two bookmarks carrying the tag are both shown', () => {
+test('a day may have more than one best, and all of them are shown', () => {
   const ws = createTempWorkspace();
   writeDailyCache(ws.cacheBase, '2026-09-11', [
     {
@@ -200,14 +200,45 @@ test('two bookmarks carrying the tag are both shown', () => {
       date: '2026-09-11T10:00:00+09:00',
       tags: ['daily_best'],
     },
+    { title: '選ばれなかった', link: 'https://example.com/c', date: '2026-09-11T11:00:00+09:00' },
   ]);
 
   const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--date', '2026-09-11']);
   expect(result.status).toBe(0);
   expect(result.stdout).toContain('片方');
   expect(result.stdout).toContain('もう片方');
-  // Two is not what the round is for, so it says so rather than picking one.
-  expect(result.stdout).toMatch(/2 bookmarks carry daily_best/);
+  expect(result.stdout).not.toContain('選ばれなかった');
+  // Some days do not narrow to one. That is a count, not a complaint.
+  expect(result.stdout).toMatch(/2 daily_best/);
+  expect(result.stdout).toContain('https://b.hatena.ne.jp/entry/s/example.com/a');
+  expect(result.stdout).toContain('https://b.hatena.ne.jp/entry/s/example.com/b');
+});
+
+test('several bests in a week are all candidates for the weekly round', () => {
+  const ws = createTempWorkspace();
+  seed(ws);
+  // 2026-09-10 gets two, so the week has more candidates than it has days.
+  writeDailyCache(ws.cacheBase, '2026-09-10', [
+    {
+      title: '木曜の一本目',
+      link: 'https://example.com/thu-1',
+      date: '2026-09-10T09:00:00+09:00',
+      tags: ['daily_best'],
+    },
+    {
+      title: '木曜の二本目',
+      link: 'https://example.com/thu-2',
+      date: '2026-09-10T10:00:00+09:00',
+      tags: ['daily_best'],
+    },
+  ]);
+
+  const parsed = JSON.parse(
+    runCli(ws.cacheBase, ws.homeDir, ['pick', '--weekly', '--date', '2026-09-12', '--json']).stdout,
+  );
+  expect(parsed.candidate_count).toBe(5);
+  expect(parsed.candidates.map((row: any) => row.title)).toContain('木曜の一本目');
+  expect(parsed.candidates.map((row: any) => row.title)).toContain('木曜の二本目');
 });
 
 test('one candidate is one candidate', () => {

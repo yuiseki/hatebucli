@@ -187,7 +187,8 @@ makes the weekly round able to read what the daily round chose:
 | `pick --monthly` | `weekly_best` of the month | `monthly_best` |
 
 A round that is already decided shows what was chosen and stops, rather than
-asking you to read the day again. `--all` lists the candidates anyway, with the
+asking you to read the day again. A day may have more than one best; they are
+all shown, and all of them go forward as candidates for the weekly round. `--all` lists the candidates anyway, with the
 chosen one marked, and a number still resolves against that list if you change
 your mind. See [ADR 011](docs/ADR/011-best-of-rounds.md) for why this does not
 go through the write API.

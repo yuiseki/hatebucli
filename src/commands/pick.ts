@@ -211,10 +211,12 @@ function reportDecided(
     return;
   }
 
+  // More than one is allowed. Some days do not narrow to one, and saying so
+  // is a count rather than a complaint.
   console.log(
     chosen.length === 1
       ? `${window.label} already has its ${tag}.`
-      : `${window.label}: ${chosen.length} bookmarks carry ${tag}.`,
+      : `${window.label} already has ${chosen.length} ${tag}.`,
   );
   for (const candidate of chosen) {
     console.log('');
