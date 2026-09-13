@@ -166,6 +166,30 @@ each row. `random` takes the same filters.
 These read every cached day rather than an index. Over an archive of a few
 hundred thousand bookmarks that is under a second.
 
+### Choosing a best of the day
+
+```bash
+hatebu pick                        # yesterday's bookmarks, numbered
+hatebu pick 12                     # the entry page for number 12
+hatebu pick --weekly               # the week's daily_best
+hatebu pick --monthly --date 2026-09
+```
+
+`pick` writes nothing. It lays out the candidates and gives you the Hatena
+entry page for the one you chose; you add the `daily_best` tag there, the way
+you would add any tag. The next `hatebu sync` brings it back, which is what
+makes the weekly round able to read what the daily round chose:
+
+| round | candidates | tag to add |
+| --- | --- | --- |
+| `pick` | the day's bookmarks | `daily_best` |
+| `pick --weekly` | `daily_best` of the last seven days | `weekly_best` |
+| `pick --monthly` | `weekly_best` of the month | `monthly_best` |
+
+A candidate that already carries the tag is marked, so a finished day looks
+different from an untouched one. See [ADR 011](docs/ADR/011-best-of-rounds.md)
+for why this does not go through the write API.
+
 ### Filling the cache
 
 ```bash

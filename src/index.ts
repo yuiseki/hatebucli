@@ -11,6 +11,7 @@ import { registerLookupCommand } from './commands/lookup';
 import { registerTimelineCommand } from './commands/timeline';
 import { registerTaggedCommand } from './commands/tagged';
 import { registerRandomCommand } from './commands/random';
+import { registerPickCommand } from './commands/pick';
 import { registerSyncCommand } from './commands/sync';
 import { registerImportCommand } from './commands/import';
 
@@ -43,6 +44,7 @@ registerLookupCommand(program);
 registerTimelineCommand(program);
 registerTaggedCommand(program);
 registerRandomCommand(program);
+registerPickCommand(program);
 registerSyncCommand(program);
 registerImportCommand(program);
 

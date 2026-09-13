@@ -76,3 +76,27 @@ export function parseBookmarkTimestamp(value: unknown): Date | undefined {
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed;
 }
+
+/**
+ * The Hatena Bookmark entry page for a bookmarked URL: where a person adds or
+ * edits their own tags, and where everyone else's comments are.
+ *
+ * The shape is `/entry/s/<host><path>` for https and `/entry/<host><path>` for
+ * http. Derived rather than fetched, so this works offline; the entry API
+ * returns the same string as `entry_url` and a test checks a sample of real
+ * bookmarks against it.
+ */
+export function hatenaEntryUrl(link: unknown): string | undefined {
+  if (typeof link !== 'string' || link.trim().length === 0) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch (_error) {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+
+  const secure = url.protocol === 'https:' ? 's/' : '';
+  return `https://b.hatena.ne.jp/entry/${secure}${url.host}${url.pathname}${url.search}`;
+}
