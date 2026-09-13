@@ -25,6 +25,8 @@ import {
 import { resolveHatenaUser } from './credentials';
 import { searchBookmarks, type SearchField } from './services/search';
 import { loadDay } from './services/bookmarks';
+import { loadBackground } from './services/background';
+import { rankDistinctiveWords } from './services/distinctive';
 import {
   buildTimeline,
   findBookmarks,
@@ -297,26 +299,47 @@ export function createMcpServer(): McpServer {
     {
       title: 'What the bookmarks of a range were about',
       description:
-        'The words in the bookmark titles of a range, most frequent first, tokenized ' +
-        'with a Japanese morphological analyser. This is the subject matter of a ' +
-        'stretch of reading, and it works on every year, tagged or not. A word is ' +
-        'counted once per bookmark, however often the title repeats it.',
+        'The words in the bookmark titles of a range, tokenized with a Japanese ' +
+        'morphological analyser. By default they are ranked by how much more this range ' +
+        'used them than the archive usually does, so the answer is what the stretch was ' +
+        'about rather than which words it contained: ai and github are in everything and ' +
+        'will not appear unless the range is genuinely unusual about them. Pass ' +
+        'by="count" for raw frequency. Works on every year, tagged or not. A word counts ' +
+        'once per bookmark however often the title repeats it.',
       inputSchema: {
         date: z.string().optional().describe(DATE_DESCRIPTION),
         today: z.boolean().optional().describe('Today only. Cannot be combined with date'),
+        by: z
+          .enum(['distinctive', 'count'])
+          .default('distinctive')
+          .describe('Rank by how unusual the word is here, or by raw frequency'),
         limit: z.number().int().min(1).max(100).default(30).describe('Most rows to return'),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    logged('hatebu_words', async ({ date, today, limit }) => {
+    logged('hatebu_words', async ({ date, today, by, limit }) => {
       const summary = await buildWordsSummary(parseRange(date, today));
+      const background = by === 'distinctive' ? loadBackground() : null;
+      const ranking = background
+        ? rankDistinctiveWords(summary.counts, background, limit)
+        : summary.ranking.slice(0, limit);
+
       return asJsonResult({
         date: summary.range.dateKey,
+        scoring: background ? 'distinctive' : 'count',
+        ...(background ? { background_built_at: background.builtAt } : {}),
+        ...(by === 'distinctive' && !background
+          ? {
+              note:
+                'No background model on this machine, so these are raw counts. ' +
+                'The user can build one with `hatebu words --rebuild-background`.',
+            }
+          : {}),
         bookmark_count: summary.bookmarkCount,
         bookmark_count_with_words: summary.bookmarkCountWithWords,
         total_word_assignments: summary.totalWordAssignments,
         total_words: summary.ranking.length,
-        ranking: summary.ranking.slice(0, limit),
+        ranking,
         missing_dates: summary.missingDates,
       });
     }),

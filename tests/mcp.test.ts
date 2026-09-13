@@ -159,10 +159,15 @@ test('the ranking tools answer the same numbers as their commands', async () => 
   for (const [index, args] of [
     ['domains', ['domains', '--date', '2026-02', '--json', '--limit', '10']],
     ['tags', ['tags', '--date', '2026-02', '--json', '--limit', '10']],
-    ['words', ['words', '--date', '2026-02', '--json', '--limit', '30']],
+    ['words', ['words', '--date', '2026-02', '--json', '--limit', '30', '--by', 'distinctive']],
   ].entries()) {
     const fromCli = JSON.parse(runCli(ws.cacheBase, ws.homeDir, args[1] as string[]).stdout);
-    expect(toolJson(responses[index])).toEqual(fromCli);
+    // Everything but `note`, which is addressed differently: the command tells
+    // the person to build a background, the tool tells the model that the user
+    // can, because the model cannot run it.
+    const { note: _cliNote, ...cli } = fromCli;
+    const { note: _toolNote, ...tool } = toolJson(responses[index]);
+    expect(tool).toEqual(cli);
   }
 });
 

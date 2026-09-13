@@ -44,6 +44,8 @@ export type WordsSummary = {
   bookmarkCountWithWords: number;
   totalWordAssignments: number;
   ranking: WordRank[];
+  /** The same counts, for scoring that needs every word rather than the top few. */
+  counts: Map<string, number>;
   missingDates: string[];
 };
 
@@ -154,6 +156,7 @@ export async function buildWordsSummary(range: ParsedDateOption): Promise<WordsS
     bookmarkCountWithWords,
     totalWordAssignments,
     ranking: rankByCount(counts, (word, count) => ({ word, count }), byJapanese),
+    counts,
     missingDates,
   };
 }
