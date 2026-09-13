@@ -99,11 +99,34 @@ the range is the week ending yesterday.
 | `--date <yyyy\|yyyy-mm\|yyyy-mm-dd>` | a day, a month or a year |
 | `--today` | today only. Cannot be combined with `--date` |
 | `-l, --limit <number>` | rows. Default 10, capped at 10 for `domains` and `tags`, 30 for `words` |
+| `--by <distinctive\|count>` | `words` only. Default `distinctive` |
 | `-j, --json` | |
 
-`words` runs the titles through a Japanese morphological analyser, so it says
-what a stretch was about even where nothing was tagged. A word counts once per
-bookmark however often the title repeats it.
+`words` runs the titles through a Japanese morphological analyser and ranks by
+how much more the range used each word than the archive usually does, so the
+answer is what the stretch was about rather than which words it contained. A
+word counts once per bookmark however often the title repeats it.
+
+```bash
+hatebu words --rebuild-background   # once, about a minute
+hatebu words --date 2013
+```
+
+The background is one file of word counts over the whole archive, about 1MB.
+Building it tokenizes every title, which takes a minute, so it is a command you
+run rather than something that happens during `sync`; a day of new bookmarks
+moves a background of 374,000 by nothing. Without it, `words` falls back to raw
+counts and says so. `--by count` asks for those on purpose.
+
+Ranking this way is what makes a year legible:
+
+```
+2013   js node grunt javascript fluentd css backbone sass angularjs chef
+2019   nhk ニュース 朝日新聞 ライブドアニュース 放火 yahoo pay 香港 文春
+```
+
+Frequency alone answers `ai github for and the https` for every year of this
+archive. See [ADR 010](docs/ADR/010-distinctive-words.md).
 
 `stats` puts a window together: how much, at what hours, on what weekdays, and
 the sites and tags that led it. Markdown to read, `--json` to compute from; the
@@ -235,7 +258,7 @@ run.
 | `hatebu_list` | `date` (defaults to today) |
 | `hatebu_domains` | `date`, `today`, `limit` |
 | `hatebu_tags` | `date`, `today`, `limit` |
-| `hatebu_words` | `date`, `today`, `limit` (default 30) |
+| `hatebu_words` | `date`, `today`, `by`, `limit` (default 30) |
 | `hatebu_stats` | `date`, `days`, `top` |
 | `hatebu_lookup` | `url_or_domain` (required), `limit` |
 | `hatebu_timeline` | `by`, `tag`, `domain`, `query`, `from`, `to` |
