@@ -266,3 +266,92 @@ export function randomBookmarks(filter: ArchiveFilter, count: number): {
 
   return { entries: reservoir, matchCount };
 }
+
+export type Burst = {
+  from: string;
+  to: string;
+  months: number;
+  count: number;
+  peak_month: string;
+  peak_per_1000: number;
+  /** How many times the subject's usual rate the peak month ran at. */
+  lift: number;
+};
+
+export type BurstsReport = {
+  months: number;
+  total: number;
+  baseline_per_1000: number;
+  bursts: Burst[];
+};
+
+/**
+ * The stretches where a subject ran well above its own usual rate.
+ *
+ * The comparison is against the subject's rate over the whole archive rather
+ * than against its other months, because most months of a specific subject
+ * hold nothing, and a median of zeroes cannot be exceeded.
+ *
+ * A month needs a floor of matches as well as a lift. Half of a two-bookmark
+ * month is an enormous rate and no evidence at all.
+ */
+export function findBursts(
+  filter: ArchiveFilter,
+  options: { lift?: number; minCount?: number } = {},
+): BurstsReport {
+  // Three rather than two: at two, a subject with a high baseline reports
+  // every ordinary busy month. 地図 gave sixteen bursts at two and eight at three.
+  const lift = options.lift ?? 3;
+  const minCount = options.minCount ?? 3;
+
+  // scannedBookmarks is every bookmark of the window; rows only cover the
+  // months that matched, so summing their totals would leave out the quiet
+  // months and flatter the baseline.
+  const { rows, total, scannedBookmarks } = buildTimeline(filter, 'month');
+  const baseline = scannedBookmarks === 0 ? 0 : (total / scannedBookmarks) * 1000;
+
+  const bursts: Burst[] = [];
+  let current: TimelineRow[] = [];
+
+  const close = () => {
+    if (current.length === 0) return;
+    const peak = current.reduce((best, row) => (row.per_1000 > best.per_1000 ? row : best));
+    bursts.push({
+      from: current[0].period,
+      to: current[current.length - 1].period,
+      months: current.length,
+      count: current.reduce((sum, row) => sum + row.count, 0),
+      peak_month: peak.period,
+      peak_per_1000: peak.per_1000,
+      lift: baseline === 0 ? 0 : Math.round((peak.per_1000 / baseline) * 10) / 10,
+    });
+    current = [];
+  };
+
+  // buildTimeline skips months with no matches, so a gap in the rows is a gap
+  // in the burst. Consecutive rows are only a run if their months adjoin.
+  let previous: string | undefined;
+  for (const row of rows) {
+    const hot = row.count >= minCount && baseline > 0 && row.per_1000 >= baseline * lift;
+    if (!hot || (previous !== undefined && !adjoins(previous, row.period))) {
+      close();
+    }
+    if (hot) current.push(row);
+    previous = row.period;
+  }
+  close();
+
+  return {
+    months: rows.length,
+    total,
+    baseline_per_1000: Math.round(baseline * 10) / 10,
+    bursts,
+  };
+}
+
+/** Whether `later` is the month right after `earlier`, as yyyy-mm. */
+function adjoins(earlier: string, later: string): boolean {
+  const [ey, em] = earlier.split('-').map(Number);
+  const [ly, lm] = later.split('-').map(Number);
+  return ly * 12 + lm === ey * 12 + em + 1;
+}

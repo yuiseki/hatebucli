@@ -32,6 +32,7 @@ import { rankDistinctiveWords } from './services/distinctive';
 import {
   buildTimeline,
   findBookmarks,
+  findBursts,
   lookup,
   randomBookmarks,
 } from './services/queries';
@@ -470,6 +471,54 @@ export function createMcpServer(): McpServer {
         },
         total: timeline.total,
         rows: timeline.rows,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_bursts',
+    {
+      title: 'When a subject flared up',
+      description:
+        'The stretches where a subject ran well above its own usual rate, with when it ' +
+        'peaked and by how much. This is the tool for when an interest started and ' +
+        'whether it came back: hatebu_timeline draws the shape, this names the episodes. ' +
+        'The comparison is against the subject\'s rate over the whole archive, so a ' +
+        'month is a burst because it is unusual for that subject, not because it is ' +
+        'busy. Needs query, tag or domain.',
+      inputSchema: {
+        query: z.string().optional().describe('Only bookmarks whose title or URL contains this'),
+        tag: z.string().optional().describe('Only bookmarks under this tag'),
+        domain: z.string().optional().describe('Only bookmarks from this site'),
+        from: z.string().optional().describe('Earliest day to look at, as yyyy-mm-dd'),
+        to: z.string().optional().describe('Latest day to look at, as yyyy-mm-dd'),
+        lift: z
+          .number()
+          .min(1.1)
+          .max(100)
+          .default(3)
+          .describe('Times the usual rate a month must run at to count'),
+        min_count: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .default(3)
+          .describe('Matches a month needs before it counts, so a tiny month cannot spike'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_bursts', async ({ query, tag, domain, from, to, lift, min_count }) => {
+      if (!query && !tag && !domain) {
+        throw new Error('bursts needs query, tag or domain to look for.');
+      }
+      const report = findBursts(
+        { query, tag, domain, from: parseBound(from), to: parseBound(to) },
+        { lift, minCount: min_count },
+      );
+      return asJsonResult({
+        subject: query ?? tag ?? domain,
+        ...report,
       });
     }),
   );

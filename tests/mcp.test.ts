@@ -52,6 +52,7 @@ test('the server introduces itself and lists read-only tools', async () => {
   expect(initialize.serverInfo.name).toBe('hatebucli');
   expect(initialize.serverInfo.version).toBe(require('../package.json').version);
   expect(tools.map((tool: any) => tool.name).sort()).toEqual([
+    'hatebu_bursts',
     'hatebu_compare',
     'hatebu_context',
     'hatebu_domains',
@@ -389,4 +390,32 @@ test('hatebu_compare answers what each side had that the other did not', async (
   const agent = payload.risen.find((row: any) => row.word === 'エージェント');
   expect([agent.a, agent.b]).toEqual([0, 6]);
   expect(agent.bPer1000).toBeGreaterThan(agent.aPer1000);
+});
+
+test('hatebu_bursts names the flares and refuses an empty subject', async () => {
+  const ws = createTempWorkspace();
+  for (const dateKey of ['2024-01-05', '2024-02-05', '2024-03-05', '2024-04-05', '2024-05-05']) {
+    writeDailyCache(
+      ws.cacheBase,
+      dateKey,
+      Array.from({ length: 20 }, (_item, index) => ({
+        title: dateKey === '2024-03-05' && index < 8 ? `地図の記事 ${index}` : `別の記事 ${index}`,
+        link: `https://example.com/${dateKey}-${index}`,
+        date: `${dateKey}T09:00:00+09:00`,
+      })),
+    );
+  }
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_bursts', arguments: { query: '地図' } },
+    { name: 'hatebu_bursts', arguments: {} },
+  ]);
+
+  const payload = toolJson(responses[0]);
+  expect(payload.subject).toBe('地図');
+  expect(payload.bursts).toHaveLength(1);
+  expect(payload.bursts[0].peak_month).toBe('2024-03');
+
+  expect(responses[1].result.isError).toBe(true);
+  expect(toolText(responses[1])).toContain('query, tag or domain');
 });

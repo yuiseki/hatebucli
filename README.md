@@ -211,6 +211,7 @@ hatebu compare 2023 2026            # what rose, and what fell away
 hatebu compare 2025 2026 --by domains
 hatebu context https://example.com/article   # what it was read alongside
 hatebu timeline --query maplibre --bars      # count and share, per period
+hatebu bursts --query maplibre               # when it flared, and how far above usual
 ```
 
 `compare` scores each period against the other, so a word common to both says
@@ -225,6 +226,18 @@ More in 2026
 More in 2023
   chatgpt: 510 → 62  (5.9 → 0.9 per 1000)
   langchain: 109 → 5  (1.3 → 0.1 per 1000)
+```
+
+`bursts` names the episodes a timeline only draws. A month counts when it runs
+at three times the subject's own rate over the whole archive and holds at least
+three matches, so a subject is bursting because it is unusual for itself, not
+because the month was busy:
+
+```
+maplibre: 123 bookmarks, usually 0.3 per 1000
+  2022-11..2023-01  15 bookmarks, peak 2023-01 at 5.6 per 1000 (17x)
+  2024-10..2024-12  17 bookmarks, peak 2024-11 at 7.4 per 1000 (22.5x)
+  2026-05..2026-09  28 bookmarks, peak 2026-08 at 12.2 per 1000 (37.1x)
 ```
 
 `context` answers why a page was bookmarked, by showing what was bookmarked
@@ -313,7 +326,7 @@ before pointing a client at it.
 
 ### Tools
 
-Twelve, all read-only. Nothing writes to your account, and there is no sync tool:
+Thirteen, all read-only. Nothing writes to your account, and there is no sync tool:
 fetching is a decision about somebody else's server, so it stays a command you
 run.
 
@@ -331,6 +344,7 @@ run.
 | `hatebu_random` | `count`, `tag`, `domain`, `query`, `from`, `to` |
 | `hatebu_compare` | `a`, `b` (required), `by` (`words`, `domains`, `tags`), `limit` |
 | `hatebu_context` | `url_or_time` (required), `minutes`, `gap` |
+| `hatebu_bursts` | one of `query`, `tag`, `domain` (required), `from`, `to`, `lift`, `min_count` |
 
 They answer the same numbers as the matching command, down to the defaults, and
 a test holds them to it. What differs is what a model needs and a terminal does
