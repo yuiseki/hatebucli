@@ -267,8 +267,8 @@ test('the archive tools answer the same as their commands', async () => {
   const timeline = toolJson(responses[1]);
   expect(timeline.total).toBe(3);
   expect(timeline.rows).toEqual([
-    { period: '2019', count: 1 },
-    { period: '2026', count: 2 },
+    { period: '2019', count: 1, total: 1, per_1000: 1000 },
+    { period: '2026', count: 2, total: 3, per_1000: 666.7 },
   ]);
 
   const tagged = toolJson(responses[2]);

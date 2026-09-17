@@ -80,13 +80,18 @@ test('timeline counts per year and per month, oldest first', () => {
   const byYear = runCli(ws.cacheBase, ws.homeDir, ['timeline', '--json']);
   expect(byYear.status).toBe(0);
   expect(JSON.parse(byYear.stdout).rows).toEqual([
-    { period: '2019', count: 1 },
-    { period: '2022', count: 2 },
-    { period: '2026', count: 1 },
+    { period: '2019', count: 1, total: 1, per_1000: 1000 },
+    { period: '2022', count: 2, total: 2, per_1000: 1000 },
+    { period: '2026', count: 1, total: 1, per_1000: 1000 },
   ]);
 
   const byMonth = runCli(ws.cacheBase, ws.homeDir, ['timeline', '--by', 'month', '--json']);
-  expect(JSON.parse(byMonth.stdout).rows[0]).toEqual({ period: '2019-07', count: 1 });
+  expect(JSON.parse(byMonth.stdout).rows[0]).toEqual({
+    period: '2019-07',
+    count: 1,
+    total: 1,
+    per_1000: 1000,
+  });
 });
 
 test('timeline filters by query, tag, domain and date bounds', () => {
@@ -105,7 +110,9 @@ test('timeline filters by query, tag, domain and date bounds', () => {
   const bounded = runCli(ws.cacheBase, ws.homeDir, [
     'timeline', '--from', '2020-01-01', '--to', '2025-12-31', '--json',
   ]);
-  expect(JSON.parse(bounded.stdout).rows).toEqual([{ period: '2022', count: 2 }]);
+  expect(JSON.parse(bounded.stdout).rows).toEqual([
+    { period: '2022', count: 2, total: 2, per_1000: 1000 },
+  ]);
 });
 
 test('timeline rejects bounds and buckets it cannot use', () => {

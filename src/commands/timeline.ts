@@ -47,13 +47,23 @@ export function registerTimelineCommand(program: Command): void {
         return;
       }
 
-      const widest = rows.reduce((most, row) => Math.max(most, row.count), 0);
+      // With a filter, the share is the series worth looking at; without one
+      // every share is the whole of it, so the count is.
+      const filtered = Boolean(options.tag || options.domain || options.query);
+      const value = (row: (typeof rows)[number]) => (filtered ? row.per_1000 : row.count);
+      const widest = rows.reduce((most, row) => Math.max(most, value(row)), 0);
+
+      console.log(filtered ? 'period\tcount\tper 1000' : 'period\tcount');
       for (const row of rows) {
         const bar = options.bars
-          ? ` ${'#'.repeat(Math.max(1, Math.round((row.count / widest) * 40)))}`
+          ? ` ${'#'.repeat(Math.max(1, Math.round((value(row) / widest) * 40)))}`
           : '';
-        console.log(`${row.period}\t${row.count}${bar}`);
+        const share = filtered ? `\t${row.per_1000}` : '';
+        console.log(`${row.period}\t${row.count}${share}${bar}`);
       }
       console.log(`Total: ${total}`);
+      if (filtered) {
+        console.log('per 1000 is how many of every thousand bookmarks of that period matched.');
+      }
     });
 }

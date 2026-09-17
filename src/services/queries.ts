@@ -95,14 +95,30 @@ export function findBookmarks(filter: ArchiveFilter, limit: number): FindResult 
   return { matchCount, scannedBookmarks, scannedDays, entries, first, last };
 }
 
-export type TimelineRow = { period: string; count: number };
+export type TimelineRow = {
+  period: string;
+  count: number;
+  /** Every bookmark of the period, matching or not. */
+  total: number;
+  /** count per thousand bookmarks of the period, to one decimal. */
+  per_1000: number;
+};
 
+/**
+ * Bookmarks per period, as a count and as a share.
+ *
+ * The share is the part that answers "was I reading more about this". Raw
+ * counts follow how much was bookmarked at all, which in this archive varies
+ * by a factor of two between years, so a subject can take a growing share of
+ * the reading while its count falls.
+ */
 export function buildTimeline(
   filter: ArchiveFilter,
   by: 'year' | 'month',
 ): { rows: TimelineRow[]; total: number; scannedBookmarks: number } {
   const matcher = buildMatcher(filter);
   const counts = new Map<string, number>();
+  const totals = new Map<string, number>();
   let total = 0;
   let scannedBookmarks = 0;
 
@@ -110,6 +126,7 @@ export function buildTimeline(
     const period = by === 'year' ? day.dateKey.slice(0, 4) : day.dateKey.slice(0, 7);
     for (const bookmark of day.bookmarks) {
       scannedBookmarks += 1;
+      totals.set(period, (totals.get(period) || 0) + 1);
       if (!matcher(bookmark)) continue;
       total += 1;
       counts.set(period, (counts.get(period) || 0) + 1);
@@ -119,7 +136,17 @@ export function buildTimeline(
   // Oldest first: a timeline reads forwards.
   const rows = Array.from(counts.entries())
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
-    .map(([period, count]) => ({ period, count }));
+    .map(([period, count]) => {
+      const periodTotal = totals.get(period) || 0;
+      return {
+        period,
+        count,
+        total: periodTotal,
+        // One decimal: a rare subject is the difference between 0.1 and 0.9,
+        // and rounding to whole numbers makes both of them zero.
+        per_1000: periodTotal === 0 ? 0 : Math.round((count / periodTotal) * 10_000) / 10,
+      };
+    });
 
   return { rows, total, scannedBookmarks };
 }
