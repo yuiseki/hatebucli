@@ -136,9 +136,15 @@ test('a period still being read is not one to choose from', () => {
     runCli(ws.cacheBase, ws.homeDir, ['pick', '--weekly', '--json', '--no-sync']).stdout,
   );
   // The default week is a whole Monday-to-Sunday week that has already ended.
+  // The parts are read as local: new Date('2026-09-07') is UTC midnight, which
+  // is the Sunday before in any timezone west of Greenwich.
+  const weekday = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, month - 1, day).getDay();
+  };
   expect(week.to < todayKey).toBe(true);
-  expect(new Date(week.from).getDay()).toBe(1);
-  expect(new Date(week.to).getDay()).toBe(0);
+  expect(weekday(week.from)).toBe(1);
+  expect(weekday(week.to)).toBe(0);
 
   const month = JSON.parse(
     runCli(ws.cacheBase, ws.homeDir, ['pick', '--monthly', '--json', '--no-sync']).stdout,

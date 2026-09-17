@@ -6,16 +6,27 @@
  * answer to why it was read at all.
  */
 import { test, expect } from 'vitest';
-import { createTempWorkspace, runCli, writeDailyCache, type Workspace } from './helpers';
+import {
+  createTempWorkspace,
+  localTimestamp,
+  runCli,
+  writeDailyCache,
+  type Workspace,
+} from './helpers';
 
+/**
+ * Times are built in the timezone the test runs in. `context` reads and reports
+ * local clock time, so a fixture written at a fixed offset lands at a different
+ * hour depending on where it runs, and the run in UTC found that out.
+ */
 function seed(ws: Workspace): void {
   writeDailyCache(ws.cacheBase, '2026-04-10', [
-    { title: '朝の一本', link: 'https://example.com/morning', date: '2026-04-10T08:00:00+09:00' },
-    { title: '調べもの1', link: 'https://example.com/a', date: '2026-04-10T21:00:00+09:00' },
-    { title: '調べもの2', link: 'https://example.com/b', date: '2026-04-10T21:10:00+09:00' },
-    { title: 'これ', link: 'https://example.com/target', date: '2026-04-10T21:15:00+09:00' },
-    { title: '調べもの3', link: 'https://example.com/c', date: '2026-04-10T21:40:00+09:00' },
-    { title: '夜更けの一本', link: 'https://example.com/late', date: '2026-04-10T23:30:00+09:00' },
+    { title: '朝の一本', link: 'https://example.com/morning', date: localTimestamp('2026-04-10', 8) },
+    { title: '調べもの1', link: 'https://example.com/a', date: localTimestamp('2026-04-10', 21, 0) },
+    { title: '調べもの2', link: 'https://example.com/b', date: localTimestamp('2026-04-10', 21, 10) },
+    { title: 'これ', link: 'https://example.com/target', date: localTimestamp('2026-04-10', 21, 15) },
+    { title: '調べもの3', link: 'https://example.com/c', date: localTimestamp('2026-04-10', 21, 40) },
+    { title: '夜更けの一本', link: 'https://example.com/late', date: localTimestamp('2026-04-10', 23, 30) },
   ]);
 }
 
