@@ -15,6 +15,7 @@ import { registerPickCommand } from './commands/pick';
 import { registerContextCommand } from './commands/context';
 import { registerCompareCommand } from './commands/compare';
 import { registerBurstsCommand } from './commands/bursts';
+import { registerResurfaceCommand } from './commands/resurface';
 import { registerSyncCommand } from './commands/sync';
 import { registerImportCommand } from './commands/import';
 
@@ -51,6 +52,7 @@ registerPickCommand(program);
 registerContextCommand(program);
 registerCompareCommand(program);
 registerBurstsCommand(program);
+registerResurfaceCommand(program);
 registerSyncCommand(program);
 registerImportCommand(program);
 

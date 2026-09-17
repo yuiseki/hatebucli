@@ -12,7 +12,7 @@ import path from 'node:path';
 import { createTempWorkspace, runCli, writeDailyCache, type Workspace } from './helpers';
 
 function backgroundPath(cacheBase: string): string {
-  return path.join(cacheBase, 'hatebucli', 'words', 'df-v1.json');
+  return path.join(cacheBase, 'hatebucli', 'words', 'df-v2.json');
 }
 
 /**
@@ -60,7 +60,7 @@ test('the background is built on request and says what it covers', () => {
   expect(fs.existsSync(backgroundPath(ws.cacheBase))).toBe(true);
 
   const model = JSON.parse(fs.readFileSync(backgroundPath(ws.cacheBase), 'utf8'));
-  expect(model.version).toBe(1);
+  expect(model.version).toBe(2);
   expect(model.documents).toBe(350);
   expect(model.df['地図']).toBe(350);
 });
@@ -142,4 +142,34 @@ test('rejects a scoring it does not have', () => {
   const result = runCli(ws.cacheBase, ws.homeDir, ['words', '--by', 'tfidf']);
   expect(result.status).toBe(1);
   expect(result.stderr).toMatch(/--by must be/);
+});
+
+test('a title that is only a URL contributes no words', () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2008-06-01', [
+    // The early archive is full of these: the bookmark was saved before the
+    // page had a title, so the title is the address.
+    {
+      title: 'http://www.example.co.jp/archives/2008/06/index.html',
+      link: 'http://www.example.co.jp/archives/2008/06/index.html',
+      date: '2008-06-01T09:00:00+09:00',
+    },
+    {
+      title: 'ちゃんとした記事の題名',
+      link: 'https://example.com/article',
+      date: '2008-06-01T10:00:00+09:00',
+    },
+  ]);
+
+  const parsed = JSON.parse(
+    runCli(ws.cacheBase, ws.homeDir, ['words', '--date', '2008-06-01', '--by', 'count', '--json'])
+      .stdout,
+  );
+
+  const words = parsed.ranking.map((row: any) => row.word);
+  for (const fragment of ['http', 'www', 'jp', 'co', 'html', 'archives']) {
+    expect(words, fragment).not.toContain(fragment);
+  }
+  expect(parsed.bookmark_count_with_words).toBe(1);
+  expect(words).toContain('記事');
 });

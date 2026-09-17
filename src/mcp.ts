@@ -28,6 +28,7 @@ import { loadDay } from './services/bookmarks';
 import { compareSides, countSide, type CompareDimension } from './services/compare';
 import { bookmarksAround } from './services/context';
 import { loadBackground } from './services/background';
+import { resurface } from './services/resurface';
 import { rankDistinctiveWords } from './services/distinctive';
 import {
   buildTimeline,
@@ -633,6 +634,75 @@ export function createMcpServer(): McpServer {
     logged('hatebu_context', async ({ url_or_time, minutes, gap }) => {
       const sessions = bookmarksAround(url_or_time, minutes, gap);
       return asJsonResult(sessions);
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_resurface',
+    {
+      title: 'What the user cared about and stopped mentioning',
+      description:
+        'Subjects that once ran well above their usual rate and have gone quiet since, ' +
+        'with when they peaked and how long they have been dormant. Unlike every other ' +
+        'tool here this one takes no subject: it reads the whole vocabulary year by ' +
+        'year. Use it to bring something back that the user has forgotten they cared ' +
+        'about. Dormancy multiplies the score, so the oldest fades lead by default; ' +
+        'peaked_after bounds the search to a recent era. Needs the background model, ' +
+        'which the user builds with `hatebu words --rebuild-background`.',
+      inputSchema: {
+        limit: z.number().int().min(1).max(100).default(20).describe('Rows to return'),
+        min_total: z
+          .number()
+          .int()
+          .min(1)
+          .max(10000)
+          .default(20)
+          .describe('Bookmarks a word needs before it counts as having been a subject'),
+        recent_years: z
+          .number()
+          .int()
+          .min(1)
+          .max(20)
+          .default(2)
+          .describe('How many of the latest years count as now'),
+        peaked_after: z
+          .string()
+          .optional()
+          .describe('Only subjects whose height was in or after this year, as 2015'),
+        peaked_before: z
+          .string()
+          .optional()
+          .describe('Only subjects whose height was in or before this year'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_resurface', async (args) => {
+      const background = loadBackground();
+      if (!background) {
+        throw new Error(
+          'There is no background model on this machine. The user can build one with ' +
+            '`hatebu words --rebuild-background`.',
+        );
+      }
+      for (const [name, value] of [
+        ['peaked_after', args.peaked_after],
+        ['peaked_before', args.peaked_before],
+      ] as const) {
+        if (value !== undefined && !/^\d{4}$/.test(value)) {
+          throw new Error(`${name} must be a year, as 2015.`);
+        }
+      }
+
+      return asJsonResult({
+        built_at: background.builtAt,
+        rows: resurface(background, {
+          limit: args.limit,
+          minTotal: args.min_total,
+          recentYears: args.recent_years,
+          peakedAfter: args.peaked_after,
+          peakedBefore: args.peaked_before,
+        }),
+      });
     }),
   );
 

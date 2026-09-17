@@ -118,7 +118,8 @@ hatebu words --rebuild-background   # once, about a minute
 hatebu words --date 2013
 ```
 
-The background is one file of word counts over the whole archive, about 1MB.
+The background is one file of word counts over the whole archive, in total and
+by year, about 4MB.
 Building it tokenizes every title, which takes a minute, so it is a command you
 run rather than something that happens during `sync`; a day of new bookmarks
 moves a background of 374,000 by nothing. Without it, `words` falls back to raw
@@ -212,6 +213,7 @@ hatebu compare 2025 2026 --by domains
 hatebu context https://example.com/article   # what it was read alongside
 hatebu timeline --query maplibre --bars      # count and share, per period
 hatebu bursts --query maplibre               # when it flared, and how far above usual
+hatebu resurface --peaked-after 2015         # what you cared about and stopped mentioning
 ```
 
 `compare` scores each period against the other, so a word common to both says
@@ -238,6 +240,21 @@ maplibre: 123 bookmarks, usually 0.3 per 1000
   2022-11..2023-01  15 bookmarks, peak 2023-01 at 5.6 per 1000 (17x)
   2024-10..2024-12  17 bookmarks, peak 2024-11 at 7.4 per 1000 (22.5x)
   2026-05..2026-09  28 bookmarks, peak 2026-08 at 12.2 per 1000 (37.1x)
+```
+
+`resurface` takes no subject at all: it reads the vocabulary year by year for
+the shape of something that burned and went out, scoring how loud it got, how
+gone it is, how long it has been dormant and whether there was ever enough of
+it. It needs the background model that `words` uses, rebuilt with the version
+that carries a breakdown by year. See
+[ADR 013](docs/ADR/013-resurface.md).
+
+```
+word        peak year   then     now   dormant
+ニュース        2020   125.22   30.78   6y   (17259 bookmarks)
+android      2015    56.42    4.92   11y   (4411 bookmarks)
+コロナ         2020    77.82    0.94   6y   (1687 bookmarks)
+vr           2018    42.69    0.39   8y   (1090 bookmarks)
 ```
 
 `context` answers why a page was bookmarked, by showing what was bookmarked
@@ -326,7 +343,7 @@ before pointing a client at it.
 
 ### Tools
 
-Thirteen, all read-only. Nothing writes to your account, and there is no sync tool:
+Fourteen, all read-only. Nothing writes to your account, and there is no sync tool:
 fetching is a decision about somebody else's server, so it stays a command you
 run.
 
@@ -345,6 +362,7 @@ run.
 | `hatebu_compare` | `a`, `b` (required), `by` (`words`, `domains`, `tags`), `limit` |
 | `hatebu_context` | `url_or_time` (required), `minutes`, `gap` |
 | `hatebu_bursts` | one of `query`, `tag`, `domain` (required), `from`, `to`, `lift`, `min_count` |
+| `hatebu_resurface` | `limit`, `min_total`, `recent_years`, `peaked_after`, `peaked_before` |
 
 They answer the same numbers as the matching command, down to the defaults, and
 a test holds them to it. What differs is what a model needs and a terminal does

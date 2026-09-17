@@ -20,7 +20,28 @@ type LinderaModule = {
 };
 
 const ALLOWED_PARTS_OF_SPEECH = new Set<string>(['名詞', 'UNK']);
+/**
+ * Fragments of addresses and markup that the analyser reads as nouns. They are
+ * never what a bookmark is about, and they came out at the top of the early
+ * years, where a larger share of titles carry a hostname.
+ */
+const URL_FRAGMENTS = [
+  'http',
+  'https',
+  'www',
+  'com',
+  'net',
+  'org',
+  'jp',
+  'co',
+  'html',
+  'htm',
+  'php',
+  'index',
+];
+
 const STOP_WORDS = new Set<string>([
+  ...URL_FRAGMENTS,
   'する',
   'ある',
   'いる',
@@ -79,11 +100,20 @@ function resolveWordText(token: LinderaToken): string | undefined {
   return normalizeWord(token.surface);
 }
 
+/**
+ * A bookmark saved before the page had a title carries the address as its
+ * title. Tokenizing one of those yields the parts of a hostname: http, www,
+ * co, jp, html. In this archive 3.3% of titles are addresses, and 12% of 2005's,
+ * which was enough for those fragments to lead the rankings of the early years.
+ */
+const BARE_URL = /^https?:\/\/\S*$/i;
+
 export function extractWordsFromJapaneseText(text: unknown): string[] {
   if (typeof text !== 'string') return [];
 
   const normalized = text.normalize('NFKC').trim();
   if (normalized.length === 0) return [];
+  if (BARE_URL.test(normalized)) return [];
 
   const tokens = getTokenizer().tokenize(normalized);
   const words: string[] = [];

@@ -59,6 +59,7 @@ test('the server introduces itself and lists read-only tools', async () => {
     'hatebu_list',
     'hatebu_lookup',
     'hatebu_random',
+    'hatebu_resurface',
     'hatebu_search',
     'hatebu_stats',
     'hatebu_tagged',

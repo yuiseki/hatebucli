@@ -17,7 +17,10 @@ import { extractWordsFromJapaneseText } from '../words';
 import { iterateCachedDays } from './archive';
 import type { Background } from './distinctive';
 
-const VERSION = 1;
+const VERSION = 2;
+
+/** Versions this can read. v1 has the totals but no breakdown by year. */
+const READABLE = [1, 2];
 
 /**
  * Words seen in only one bookmark are dropped. They are half the vocabulary and
@@ -25,6 +28,14 @@ const VERSION = 1;
  * which is what a word seen once nearly is.
  */
 const PRUNE_BELOW = 2;
+
+export type YearCounts = {
+  /** Bookmarks of that year that had any words at all. */
+  documents: number;
+  /** Sum of df over the year, before pruning. */
+  word_instances: number;
+  df: Record<string, number>;
+};
 
 export type BackgroundFile = {
   version: number;
@@ -36,14 +47,42 @@ export type BackgroundFile = {
   first_day?: string;
   last_day?: string;
   df: Record<string, number>;
+  /** Version 2 and later. Absent from a model built by an older version. */
+  years?: Record<string, YearCounts>;
 };
 
-export function backgroundPath(): string {
-  return path.join(getCacheDir(), 'words', `df-v${VERSION}.json`);
+export type YearlyBackground = {
+  documents: number;
+  wordInstances: number;
+  df: Map<string, number>;
+};
+
+export type LoadedBackground = Background & {
+  builtAt: string;
+  documents: number;
+  /** Absent when the model on disk predates the breakdown by year. */
+  years?: Map<string, YearlyBackground>;
+};
+
+export function backgroundPath(version: number = VERSION): string {
+  return path.join(getCacheDir(), 'words', `df-v${version}.json`);
 }
 
-export function loadBackground(): (Background & { builtAt: string; documents: number }) | null {
-  const filePath = backgroundPath();
+/**
+ * The newest model on disk this version can read. A model built by an older
+ * version still answers the distinctive ranking; only the parts that need the
+ * breakdown by year have to ask for a rebuild.
+ */
+export function loadBackground(): LoadedBackground | null {
+  for (const version of [...READABLE].sort((a, b) => b - a)) {
+    const loaded = loadVersion(version);
+    if (loaded) return loaded;
+  }
+  return null;
+}
+
+function loadVersion(version: number): LoadedBackground | null {
+  const filePath = backgroundPath(version);
   if (!fs.existsSync(filePath)) return null;
 
   let parsed: BackgroundFile;
@@ -52,9 +91,22 @@ export function loadBackground(): (Background & { builtAt: string; documents: nu
   } catch (_error) {
     return null;
   }
-  if (parsed?.version !== VERSION || typeof parsed.df !== 'object' || parsed.df === null) {
+  if (parsed?.version !== version || typeof parsed.df !== 'object' || parsed.df === null) {
     return null;
   }
+
+  const years = parsed.years
+    ? new Map(
+        Object.entries(parsed.years).map(([year, counts]) => [
+          year,
+          {
+            documents: counts.documents,
+            wordInstances: counts.word_instances,
+            df: new Map(Object.entries(counts.df)),
+          },
+        ]),
+      )
+    : undefined;
 
   return {
     df: new Map(Object.entries(parsed.df)),
@@ -62,6 +114,7 @@ export function loadBackground(): (Background & { builtAt: string; documents: nu
     wordInstances: parsed.word_instances,
     vocabulary: parsed.vocabulary,
     builtAt: parsed.built_at,
+    ...(years ? { years } : {}),
   };
 }
 
@@ -84,6 +137,7 @@ export type BuildResult = {
 export function buildBackground(onProgress?: (documents: number) => void): BuildResult {
   const startedAt = Date.now();
   const counts = new Map<string, number>();
+  const byYear = new Map<string, { documents: number; instances: number; counts: Map<string, number> }>();
   let documents = 0;
   let wordInstances = 0;
   let firstDay: string | undefined;
@@ -94,13 +148,23 @@ export function buildBackground(onProgress?: (documents: number) => void): Build
     lastDay = lastDay ?? day.dateKey;
     firstDay = day.dateKey;
 
+    const year = day.dateKey.slice(0, 4);
+    let yearly = byYear.get(year);
+    if (!yearly) {
+      yearly = { documents: 0, instances: 0, counts: new Map() };
+      byYear.set(year, yearly);
+    }
+
     for (const bookmark of day.bookmarks) {
       const words = extractWordsFromJapaneseText(bookmark?.title);
       if (words.length === 0) continue;
       documents += 1;
+      yearly.documents += 1;
       for (const word of new Set(words)) {
         counts.set(word, (counts.get(word) || 0) + 1);
+        yearly.counts.set(word, (yearly.counts.get(word) || 0) + 1);
         wordInstances += 1;
+        yearly.instances += 1;
       }
     }
     if (onProgress) onProgress(documents);
@@ -114,6 +178,23 @@ export function buildBackground(onProgress?: (documents: number) => void): Build
     kept += 1;
   }
 
+  const years: Record<string, YearCounts> = {};
+  for (const [year, yearly] of [...byYear.entries()].sort()) {
+    if (yearly.documents === 0) continue;
+    const yearDf: Record<string, number> = {};
+    for (const [word, count] of yearly.counts) {
+      // Same floor as the totals: a word seen once in a year says nothing
+      // about that year and is half the size of the file.
+      if (count < PRUNE_BELOW) continue;
+      yearDf[word] = count;
+    }
+    years[year] = {
+      documents: yearly.documents,
+      word_instances: yearly.instances,
+      df: yearDf,
+    };
+  }
+
   const file: BackgroundFile = {
     version: VERSION,
     built_at: new Date().toISOString(),
@@ -125,6 +206,7 @@ export function buildBackground(onProgress?: (documents: number) => void): Build
     ...(firstDay ? { first_day: firstDay } : {}),
     ...(lastDay ? { last_day: lastDay } : {}),
     df,
+    years,
   };
 
   const filePath = backgroundPath();
