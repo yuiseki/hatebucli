@@ -185,3 +185,28 @@ test('sync refuses to cache a day it could not fetch', async () => {
   );
   expect(kept).toHaveLength(1);
 });
+
+test('days that have not happened are not fetched', async () => {
+  const ws = createTempWorkspace();
+  stub = await startStubRssServer();
+
+  const today = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  const stamp = (date: Date) =>
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+
+  // The week today falls in runs to Sunday, which for most days is partly in
+  // the future. Asking the feed for a day that has not happened is a request
+  // that can only come back empty.
+  const result = runCli(ws.cacheBase, ws.homeDir, ['pick', '--weekly', '--date', todayKey], {
+    env: feedEnv(),
+  });
+  expect(result.status).toBe(0);
+
+  const asked = stub.requestedDates();
+  expect(asked).not.toContain(stamp(today));
+  for (const day of asked) {
+    expect(day < stamp(today), `asked for ${day}`).toBe(true);
+  }
+});

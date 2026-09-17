@@ -29,6 +29,20 @@ export const DATE_OPTION_PROBLEMS: Record<DateOptionProblem, string> = {
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; problem: DateOptionProblem };
 
+/**
+ * Cuts a range short at the end of today.
+ *
+ * A year or a month that is still running reaches into days that have not
+ * happened. Walking them reports each one as a day the cache is missing, which
+ * reads as "go and sync it" for a day that cannot be synced by anyone.
+ */
+function untilToday(range: ParsedDateOption): ParsedDateOption {
+  const now = new Date();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  if (range.end <= endOfToday) return range;
+  return { ...range, end: endOfToday };
+}
+
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isDateKey(value: string): boolean {
@@ -77,12 +91,12 @@ export function tryParseDateOption(value?: string): ParseResult<ParsedDateOption
     const year = Number(value);
     return {
       ok: true,
-      value: {
+      value: untilToday({
         granularity: 'year',
         dateKey: value,
         start: new Date(year, 0, 1, 0, 0, 0, 0),
         end: new Date(year, 11, 31, 23, 59, 59, 999),
-      },
+      }),
     };
   }
 
@@ -96,12 +110,12 @@ export function tryParseDateOption(value?: string): ParseResult<ParsedDateOption
     }
     return {
       ok: true,
-      value: {
+      value: untilToday({
         granularity: 'month',
         dateKey: value,
         start: new Date(year, month - 1, 1, 0, 0, 0, 0),
         end: new Date(year, month, 0, 23, 59, 59, 999),
-      },
+      }),
     };
   }
 
@@ -112,12 +126,12 @@ export function tryParseDateOption(value?: string): ParseResult<ParsedDateOption
     const [year, month, day] = value.split('-').map(Number);
     return {
       ok: true,
-      value: {
+      value: untilToday({
         granularity: 'day',
         dateKey: value,
         start: new Date(year, month - 1, day, 0, 0, 0, 0),
         end: new Date(year, month - 1, day, 23, 59, 59, 999),
-      },
+      }),
     };
   }
 
@@ -140,7 +154,10 @@ export function tryParseDayOption(value: string): ParseResult<Date> {
 export function buildRecentWeekRangeUntilYesterday(): ParsedDateOption {
   const today = new Date();
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 8, 0, 0, 0, 0);
+  // Seven days ending yesterday, both ends included: today-7 .. today-1.
+  // today-8 makes eight of them, which is what this used to do while every
+  // caller went on calling it a week.
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7, 0, 0, 0, 0);
 
   return {
     granularity: 'day',

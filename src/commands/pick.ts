@@ -20,7 +20,6 @@ import { resolveHatenaUser } from '../credentials';
 import { readCachedDay } from '../services/archive';
 import { findBookmarks, type ArchiveEntry } from '../services/queries';
 import { saveCache } from '../storage';
-import { isToday } from '../dates';
 
 /**
  * The rounds, and what each one chooses from. A round reads the tag the
@@ -157,11 +156,15 @@ async function syncWindow(window: Window, asJson: boolean): Promise<boolean> {
     return false;
   }
 
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days: Date[] = [];
   for (const dateKey of eachDay(window)) {
     const [year, month, day] = dateKey.split('-').map(Number);
     const date = new Date(year, month - 1, day);
-    if (isToday(date)) continue;
+    // Today is still being bookmarked into, and the rest of the week has not
+    // happened. Both would come back empty; only one of them is worth asking.
+    if (date >= startOfToday) continue;
     days.push(date);
   }
   if (days.length === 0) return false;

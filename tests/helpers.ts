@@ -62,7 +62,8 @@ export function getDefaultWeeklyRangeLabels(): {
 } {
   const today = new Date();
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59, 999);
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 8, 0, 0, 0, 0);
+  // Seven days ending yesterday, both ends included.
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7, 0, 0, 0, 0);
   return {
     start,
     end,

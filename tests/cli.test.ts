@@ -9,7 +9,7 @@ import {
   ymdFromDate,
 } from './helpers';
 
-test('domains default range is from 8 days ago to yesterday', () => {
+test('domains defaults to the seven days ending yesterday', () => {
   const ws = createTempWorkspace();
   const range = getDefaultWeeklyRangeLabels();
   const todayLabel = ymdFromDate(new Date());
