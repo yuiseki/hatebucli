@@ -23,7 +23,7 @@ import {
   type ParsedDateOption,
 } from './dates';
 import { resolveHatenaUser } from './credentials';
-import { searchBookmarks, type SearchField } from './services/search';
+import { searchBookmarks, type SearchField, type SearchMatch } from './services/search';
 import { loadDay } from './services/bookmarks';
 import { loadBackground } from './services/background';
 import { rankDistinctiveWords } from './services/distinctive';
@@ -142,8 +142,12 @@ export function createMcpServer(): McpServer {
       description:
         'Full-text search over every bookmark the user has cached locally, which goes ' +
         'back to the beginning of their Hatena Bookmark account. Whitespace separates ' +
-        'terms and every term has to appear as a substring, in the title or the URL. ' +
-        'Japanese needs no spaces: 地図 finds 地図帳 on its own. Returns the title, the ' +
+        'terms and every term has to appear, in the title or the URL. A term of plain ' +
+        'letters and digits has to appear as a whole word, so ai means AI and not mai, ' +
+        'aichi or maplibre; pass match="substring" to find it inside words, which is ' +
+        'what finds LiteLLM when searching llm. A term with punctuation or Japanese in ' +
+        'it is always matched as written: arxiv.org is the host, and 地図 finds 地図帳. ' +
+        'Returns the title, the ' +
         'URL and the day it was bookmarked, with match_count (everything that matched) ' +
         'alongside returned_count (what the limit allowed): count from match_count, ' +
         'never from the length of the results. To count what came from a site, ' +
@@ -156,6 +160,13 @@ export function createMcpServer(): McpServer {
           .enum(['all', 'title', 'url'])
           .default('all')
           .describe('Where to match: the title, the URL, or either'),
+        match: z
+          .enum(['word', 'substring'])
+          .default('word')
+          .describe(
+            'How a plain letters-and-digits term is matched: as a whole word, or ' +
+              'anywhere inside one',
+          ),
         date: z
           .string()
           .optional()
@@ -170,7 +181,7 @@ export function createMcpServer(): McpServer {
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    logged('hatebu_search', async ({ query, field, date, limit }) => {
+    logged('hatebu_search', async ({ query, field, match, date, limit }) => {
       const normalizedQuery = query.trim();
       if (normalizedQuery.length === 0) {
         throw new Error('query must not be empty.');
@@ -182,11 +193,13 @@ export function createMcpServer(): McpServer {
       const { matchCount, results } = searchBookmarks(normalizedQuery, {
         dateKey: date,
         field: field as SearchField,
+        match: match as SearchMatch,
         limit,
       });
       return asJsonResult({
         query: normalizedQuery,
         field,
+        match,
         ...(date ? { date } : {}),
         // Both numbers, because the second is what a question like "how many
         // have I bookmarked" is actually asking, and the limit hides it.

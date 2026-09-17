@@ -66,10 +66,15 @@ hatebu search 地図 --date 2026-02-18 -l 50
 ```
 
 A query is one or more terms separated by whitespace, and every term has to
-appear as a substring. Japanese needs no special case: it does not put spaces
-between words, so `地図` finds `地図帳` and `白地図` on its own. `地図 AI` is two
-terms and needs both. Results are ordered by score, then newest first, and the
-last line says how many matched when the limit cut them.
+appear. A term of plain letters and digits has to appear as a whole word, so
+`ai` means AI and not `mai`, `aichi` or `maplibre`. Anything else is matched as
+written: `地図` finds `地図帳` and `白地図`, and `arxiv.org` is a host. `地図 AI`
+is two terms and needs both. Results are ordered by score, then newest first,
+and the last line says how many matched when the limit cut them.
+
+`--match substring` looks inside words, which is what finds `LiteLLM` when you
+search `llm`. See [ADR 012](docs/ADR/012-word-terms.md) for the measurements
+behind the default.
 
 To count what came from a site, use `hatebu lookup` instead: it matches the
 hostname, where a URL search matches the text of the URL anywhere in it.
@@ -77,6 +82,7 @@ hostname, where a URL search matches the text of the URL anywhere in it.
 | Option | |
 | --- | --- |
 | `-f, --field <all\|title\|url>` | where to match. Default `all` |
+| `-m, --match <word\|substring>` | how a plain term is matched. Default `word` |
 | `-d, --date <yyyy-mm-dd>` | one day only |
 | `-l, --limit <number>` | default 10 |
 | `-j, --json` | |
@@ -286,7 +292,7 @@ run.
 
 | Tool | Arguments |
 | --- | --- |
-| `hatebu_search` | `query` (required, up to 200 characters), `field`, `date`, `limit` (default 10, max 100). Returns `match_count` and `returned_count` |
+| `hatebu_search` | `query` (required, up to 200 characters), `field`, `match`, `date`, `limit` (default 10, max 100). Returns `match_count` and `returned_count` |
 | `hatebu_list` | `date` (defaults to today) |
 | `hatebu_domains` | `date`, `today`, `limit` |
 | `hatebu_tags` | `date`, `today`, `limit` |

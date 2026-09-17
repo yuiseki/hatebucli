@@ -8,19 +8,24 @@
  * it. See docs/ADR/005-search-by-scanning.md.
  *
  * A query is one or more terms separated by whitespace, and every term has to
- * appear as a substring. Japanese needs no special case: it does not put
- * spaces between words, so a substring search for 地図 finds 地図帳 and 白地図
- * on its own. See docs/ADR/009-substring-matching.md for what this replaced
- * and why.
+ * appear. A term of plain letters and digits has to appear as a word: `ai`
+ * means AI, not mai, aichi or maplibre. Anything else is matched as written,
+ * which is what Japanese wants, since it does not put spaces between words and
+ * 地図 should find 地図帳. See docs/ADR/009-substring-matching.md and
+ * docs/ADR/012-word-terms.md.
  */
 import { isDateKey } from '../dates';
 import { iterateCachedDays, readCachedDay } from './archive';
 
 export type SearchField = 'all' | 'title' | 'url';
 
+/** How a term of plain letters and digits is matched. */
+export type SearchMatch = 'word' | 'substring';
+
 export interface SearchOptions {
   dateKey?: string;
   field?: SearchField;
+  match?: SearchMatch;
   limit?: number;
 }
 
@@ -53,13 +58,46 @@ function terms(query: string): string[] {
     .filter((term) => term.length > 0);
 }
 
+/** Plain letters and digits, which is what has words to be a whole one of. */
+const PLAIN_TERM = /^[a-z0-9]+$/;
+
+const LETTER_OR_DIGIT = /[a-z0-9]/;
+
+/**
+ * Whether the term appears in the text as a word.
+ *
+ * A word ends where the next character is not a letter or a digit, so `_` and
+ * `-` both separate: `spec` is a word of `tile_spec` and of `maplibre-tile-spec`.
+ * Japanese counts as a boundary too, which is what lets `ai` match 生成AIの現在
+ * while missing aichi.
+ */
+function containsWord(haystack: string, term: string): boolean {
+  let index = haystack.indexOf(term);
+  while (index !== -1) {
+    const before = index === 0 ? '' : haystack[index - 1];
+    const after = haystack[index + term.length] ?? '';
+    if (!LETTER_OR_DIGIT.test(before) && !LETTER_OR_DIGIT.test(after)) return true;
+    index = haystack.indexOf(term, index + 1);
+  }
+  return false;
+}
+
 export function searchBookmarks(query: string, options: SearchOptions = {}): SearchOutcome {
   const queryTerms = terms(query);
   if (queryTerms.length === 0) return { matchCount: 0, results: [] };
 
   const field = options.field || 'all';
+  const match = options.match || 'word';
   const limit = options.limit && options.limit > 0 ? options.limit : 10;
   const whole = normalizeText(query).trim();
+
+  // A term with punctuation or Japanese in it has no word boundaries to hold
+  // it to, so it is matched as written whatever the mode says.
+  const matchers = queryTerms.map((term) =>
+    match === 'word' && PLAIN_TERM.test(term)
+      ? (text: string) => containsWord(text, term)
+      : (text: string) => text.includes(term),
+  );
   const wantsTitle = field === 'all' || field === 'title';
   const wantsUrl = field === 'all' || field === 'url';
 
@@ -82,9 +120,9 @@ export function searchBookmarks(query: string, options: SearchOptions = {}): Sea
       let titleTerms = 0;
       let urlTerms = 0;
       let matchesEveryTerm = true;
-      for (const term of queryTerms) {
-        const inTitle = wantsTitle && normalizedTitle.includes(term);
-        const inUrl = wantsUrl && normalizedLink.includes(term);
+      for (const matches of matchers) {
+        const inTitle = wantsTitle && matches(normalizedTitle);
+        const inUrl = wantsUrl && matches(normalizedLink);
         if (!inTitle && !inUrl) {
           matchesEveryTerm = false;
           break;

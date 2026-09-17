@@ -1,7 +1,15 @@
 import { Command } from 'commander';
 import { isDateKey } from '../dates';
 import { parsePositiveIntegerOption } from '../options';
-import { searchBookmarks, type SearchField } from '../services/search';
+import { searchBookmarks, type SearchField, type SearchMatch } from '../services/search';
+
+function parseSearchMatch(value: string): SearchMatch {
+  if (value === 'word' || value === 'substring') {
+    return value;
+  }
+  console.error('Error: --match must be one of "word" or "substring".');
+  process.exit(1);
+}
 
 function parseSearchField(value: string): SearchField {
   if (value === 'all' || value === 'title' || value === 'url') {
@@ -16,6 +24,7 @@ export function registerSearchCommand(program: Command): void {
     .command('search <query>')
     .description('Search bookmarks from local cache')
     .option('-f, --field <all|title|url>', 'search field', 'all')
+    .option('-m, --match <word|substring>', 'match a plain term as a word, or anywhere', 'word')
     .option('-d, --date <yyyy-mm-dd>', 'target date')
     .option('-l, --limit <number>', 'maximum results', '10')
     .option('-j, --json', 'output as JSON')
@@ -27,6 +36,7 @@ export function registerSearchCommand(program: Command): void {
       }
 
       const field = parseSearchField(options.field);
+      const match = parseSearchMatch(options.match);
       const limit = parsePositiveIntegerOption(options.limit, '--limit');
 
       if (options.date && !isDateKey(options.date)) {
@@ -37,6 +47,7 @@ export function registerSearchCommand(program: Command): void {
       const { matchCount, results } = searchBookmarks(normalizedQuery, {
         dateKey: options.date,
         field,
+        match,
         limit,
       });
 

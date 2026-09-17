@@ -102,3 +102,90 @@ test('search says how many matched, not just how many it returned', () => {
   expect(text.status).toBe(0);
   expect(text.stdout).toContain('(showing 1 of 2)');
 });
+
+/**
+ * Short alphabetic terms were the hole left by substring matching. `ai` found
+ * mai, aichi, maplibre, flybrain and 因果推論: 44,678 bookmarks in the real
+ * archive, twelve percent of it, against 6,585 that are about AI.
+ */
+function seedWords(ws: Workspace): void {
+  writeDailyCache(ws.cacheBase, '2026-03-01', [
+    { title: '生成AIの現在', link: 'https://example.com/1', date: '2026-03-01T09:00:00+09:00' },
+    { title: 'AI-generated art', link: 'https://example.com/2', date: '2026-03-01T10:00:00+09:00' },
+    { title: '愛知県の話', link: 'https://example.com/aichi', date: '2026-03-01T11:00:00+09:00' },
+    { title: 'Jimmy Lai の半生', link: 'https://example.com/lai', date: '2026-03-01T12:00:00+09:00' },
+    { title: 'maplibre-tile-spec', link: 'https://example.com/maplibre', date: '2026-03-01T13:00:00+09:00' },
+    { title: 'KDDI地図サイト', link: 'https://example.com/kddi', date: '2026-03-01T14:00:00+09:00' },
+    { title: '地図帳をめくる', link: 'https://example.com/atlas2', date: '2026-03-01T15:00:00+09:00' },
+    { title: 'tile_spec の話', link: 'https://example.com/tile', date: '2026-03-01T16:00:00+09:00' },
+  ]);
+}
+
+test('an alphabetic term matches whole words, not the letters inside them', () => {
+  const ws = createTempWorkspace();
+  seedWords(ws);
+
+  const titles = search(ws, ['ai']).map((row: any) => row.title);
+  expect(titles.sort()).toEqual(['AI-generated art', '生成AIの現在']);
+});
+
+test('a term next to Japanese is still a word', () => {
+  const ws = createTempWorkspace();
+  seedWords(ws);
+
+  // 生成AIの現在: neither 成 nor の is a letter, so AI stands alone there.
+  expect(search(ws, ['ai']).map((row: any) => row.title)).toContain('生成AIの現在');
+});
+
+test('an underscore separates words, the way a hyphen does', () => {
+  const ws = createTempWorkspace();
+  seedWords(ws);
+
+  expect(search(ws, ['spec']).map((row: any) => row.title).sort()).toEqual([
+    'maplibre-tile-spec',
+    'tile_spec の話',
+  ]);
+});
+
+test('a Japanese term is matched inside words, as before', () => {
+  const ws = createTempWorkspace();
+  seedWords(ws);
+
+  // 地図 has no word boundaries to speak of, and KDDI地図 is a hit even though
+  // the character before it is a letter.
+  expect(search(ws, ['地図']).map((row: any) => row.title).sort()).toEqual([
+    'KDDI地図サイト',
+    '地図帳をめくる',
+  ]);
+});
+
+test('a term that is not plain letters and digits stays a substring', () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2026-03-02', [
+    { title: '論文', link: 'https://arxiv.org/abs/1', date: '2026-03-02T09:00:00+09:00' },
+    { title: '別の論文', link: 'https://eartharxiv.org/abs/2', date: '2026-03-02T10:00:00+09:00' },
+  ]);
+
+  // arxiv.org has a dot in it, so it is matched as written.
+  expect(search(ws, ['arxiv.org']).map((row: any) => row.link).sort()).toEqual([
+    'https://arxiv.org/abs/1',
+    'https://eartharxiv.org/abs/2',
+  ]);
+});
+
+test('--match substring asks for the letters wherever they fall', () => {
+  const ws = createTempWorkspace();
+  seedWords(ws);
+
+  const loose = search(ws, ['ai', '--match', 'substring']).map((row: any) => row.title);
+  expect(loose).toContain('愛知県の話');
+  expect(loose).toContain('Jimmy Lai の半生');
+  expect(loose.length).toBeGreaterThan(2);
+});
+
+test('--match rejects a mode it does not have', () => {
+  const ws = createTempWorkspace();
+  const result = runCli(ws.cacheBase, ws.homeDir, ['search', 'ai', '--match', 'fuzzy']);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toMatch(/--match must be/);
+});

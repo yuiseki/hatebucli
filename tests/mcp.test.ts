@@ -100,6 +100,26 @@ test('hatebu_search answers over the whole archive, newest first', async () => {
   expect(payload.results[0].link).toBe('https://news.example.net/mapai');
 });
 
+test('hatebu_search matches a plain term as a word, and substring on request', async () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2026-03-01', [
+    { title: '生成AIの現在', link: 'https://example.com/1', date: '2026-03-01T09:00:00+09:00' },
+    { title: '愛知県の話', link: 'https://example.com/aichi', date: '2026-03-01T10:00:00+09:00' },
+  ]);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_search', arguments: { query: 'ai' } },
+    { name: 'hatebu_search', arguments: { query: 'ai', match: 'substring' } },
+  ]);
+
+  const asWord = toolJson(responses[0]);
+  expect(asWord.match).toBe('word');
+  expect(asWord.match_count).toBe(1);
+  expect(asWord.results[0].title).toBe('生成AIの現在');
+
+  expect(toolJson(responses[1]).match_count).toBe(2);
+});
+
 test('hatebu_search honours field, date and limit', async () => {
   const ws = createTempWorkspace();
   seedArchive(ws);
