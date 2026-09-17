@@ -25,6 +25,7 @@ import {
 import { resolveHatenaUser } from './credentials';
 import { searchBookmarks, type SearchField, type SearchMatch } from './services/search';
 import { loadDay } from './services/bookmarks';
+import { bookmarksAround } from './services/context';
 import { loadBackground } from './services/background';
 import { rankDistinctiveWords } from './services/distinctive';
 import {
@@ -495,6 +496,44 @@ export function createMcpServer(): McpServer {
         ...(found.last ? { last_bookmarked: found.last.dateKey } : {}),
         bookmarks: found.entries,
       });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_context',
+    {
+      title: 'What was read around a bookmark',
+      description:
+        'The bookmarks made either side of one page, grouped into sittings by the gaps ' +
+        'between them. This is the tool for why a page was bookmarked: a page on its own ' +
+        'says what was read, and the half hour around it usually says what it was read ' +
+        'alongside, which is the thread it belonged to. Give a URL, or a time as ' +
+        '2026-04-10T21:15 to look at a moment rather than a page.',
+      inputSchema: {
+        url_or_time: z
+          .string()
+          .min(1)
+          .describe('The bookmarked URL, or a time as yyyy-mm-ddThh:mm'),
+        minutes: z
+          .number()
+          .int()
+          .min(1)
+          .max(1440)
+          .default(90)
+          .describe('How far either side to look'),
+        gap: z
+          .number()
+          .int()
+          .min(1)
+          .max(720)
+          .default(30)
+          .describe('Minutes of quiet that end a sitting'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    logged('hatebu_context', async ({ url_or_time, minutes, gap }) => {
+      const sessions = bookmarksAround(url_or_time, minutes, gap);
+      return asJsonResult(sessions);
     }),
   );
 

@@ -283,7 +283,9 @@ export async function runMcp(
   return {
     initialize: messages.find((message) => message.id === 1)?.result,
     tools: messages.find((message) => message.id === 2)?.result?.tools ?? [],
-    responses: messages.filter((message) => message.id >= 3),
+    // Sorted by id: the server answers calls as they finish, so a fast error
+    // can come back before a slow success sent before it.
+    responses: messages.filter((message) => message.id >= 3).sort((a, b) => a.id - b.id),
     stderr: result.stderr,
   };
 }

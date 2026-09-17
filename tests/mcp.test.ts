@@ -52,6 +52,7 @@ test('the server introduces itself and lists read-only tools', async () => {
   expect(initialize.serverInfo.name).toBe('hatebucli');
   expect(initialize.serverInfo.version).toBe(require('../package.json').version);
   expect(tools.map((tool: any) => tool.name).sort()).toEqual([
+    'hatebu_context',
     'hatebu_domains',
     'hatebu_list',
     'hatebu_lookup',
@@ -331,4 +332,27 @@ test('every tool call is logged with its arguments and how long it took', async 
   // the arguments, and say whether the call worked.
   expect(stderr).toMatch(/\[hatebu-mcp\] hatebu_search ok \d+ms .*query="地図"/);
   expect(stderr).toMatch(/\[hatebu-mcp\] hatebu_list failed \d+ms date="2026-13-01"/);
+});
+
+test('hatebu_context answers what a page was read alongside', async () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(ws.cacheBase, '2026-04-10', [
+    { title: '調べもの1', link: 'https://example.com/a', date: '2026-04-10T21:00:00+09:00' },
+    { title: 'これ', link: 'https://example.com/target', date: '2026-04-10T21:15:00+09:00' },
+    { title: '朝の一本', link: 'https://example.com/morning', date: '2026-04-10T08:00:00+09:00' },
+  ]);
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_context', arguments: { url_or_time: 'https://example.com/target' } },
+    { name: 'hatebu_context', arguments: { url_or_time: 'https://example.com/never' } },
+  ]);
+
+  const payload = toolJson(responses[0]);
+  expect(payload.target.title).toBe('これ');
+  expect(payload.session_count).toBe(1);
+  expect(payload.sessions[0].bookmarks.map((row: any) => row.title)).toEqual(['調べもの1', 'これ']);
+
+  // A URL that is not in the cache is an error on the call, not a dead server.
+  expect(responses[1].result.isError).toBe(true);
+  expect(toolText(responses[1])).toContain('not bookmarked');
 });
