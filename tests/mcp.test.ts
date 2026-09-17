@@ -52,6 +52,7 @@ test('the server introduces itself and lists read-only tools', async () => {
   expect(initialize.serverInfo.name).toBe('hatebucli');
   expect(initialize.serverInfo.version).toBe(require('../package.json').version);
   expect(tools.map((tool: any) => tool.name).sort()).toEqual([
+    'hatebu_compare',
     'hatebu_context',
     'hatebu_domains',
     'hatebu_list',
@@ -355,4 +356,37 @@ test('hatebu_context answers what a page was read alongside', async () => {
   // A URL that is not in the cache is an error on the call, not a dead server.
   expect(responses[1].result.isError).toBe(true);
   expect(toolText(responses[1])).toContain('not bookmarked');
+});
+
+test('hatebu_compare answers what each side had that the other did not', async () => {
+  const ws = createTempWorkspace();
+  writeDailyCache(
+    ws.cacheBase,
+    '2024-05-02',
+    Array.from({ length: 10 }, (_item, index) => ({
+      title: index < 6 ? `地図の記事 ${index}` : `共通の記事 ${index}`,
+      link: `https://example.com/old/${index}`,
+      date: '2024-05-02T09:00:00+09:00',
+    })),
+  );
+  writeDailyCache(
+    ws.cacheBase,
+    '2026-05-02',
+    Array.from({ length: 10 }, (_item, index) => ({
+      title: index < 6 ? `エージェントの記事 ${index}` : `共通の記事 ${index}`,
+      link: `https://example.com/new/${index}`,
+      date: '2026-05-02T09:00:00+09:00',
+    })),
+  );
+
+  const { responses } = await runMcp(ws, [
+    { name: 'hatebu_compare', arguments: { a: '2024', b: '2026' } },
+  ]);
+
+  const payload = toolJson(responses[0]);
+  expect(payload.risen.map((row: any) => row.word)).toContain('エージェント');
+  expect(payload.fallen.map((row: any) => row.word)).toContain('地図');
+  const agent = payload.risen.find((row: any) => row.word === 'エージェント');
+  expect([agent.a, agent.b]).toEqual([0, 6]);
+  expect(agent.bPer1000).toBeGreaterThan(agent.aPer1000);
 });

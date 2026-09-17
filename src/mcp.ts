@@ -25,6 +25,7 @@ import {
 import { resolveHatenaUser } from './credentials';
 import { searchBookmarks, type SearchField, type SearchMatch } from './services/search';
 import { loadDay } from './services/bookmarks';
+import { compareSides, countSide, type CompareDimension } from './services/compare';
 import { bookmarksAround } from './services/context';
 import { loadBackground } from './services/background';
 import { rankDistinctiveWords } from './services/distinctive';
@@ -495,6 +496,55 @@ export function createMcpServer(): McpServer {
         ...(found.first ? { first_bookmarked: found.first.dateKey } : {}),
         ...(found.last ? { last_bookmarked: found.last.dateKey } : {}),
         bookmarks: found.entries,
+      });
+    }),
+  );
+
+  server.registerTool(
+    'hatebu_compare',
+    {
+      title: 'What changed between two stretches',
+      description:
+        'What each of two periods had that the other did not, as words, sites or tags. ' +
+        'This is not the same question as ranking either one: a word common to both says ' +
+        'nothing about the difference, and a word rare in both can be the whole of it. ' +
+        'Each side is scored against the other, and every row carries both counts and ' +
+        'both rates per thousand, because the two periods are rarely the same size. ' +
+        'A year against a year takes a few seconds.',
+      inputSchema: {
+        a: z.string().min(1).describe('The earlier period: a year, a month or a day'),
+        b: z.string().min(1).describe('The later period, in the same forms'),
+        by: z
+          .enum(['words', 'domains', 'tags'])
+          .default('words')
+          .describe('What to compare'),
+        limit: z.number().int().min(1).max(50).default(15).describe('Rows per side'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    logged('hatebu_compare', async ({ a, b, by, limit }) => {
+      const sideA = await countSide(parseRange(a), by as CompareDimension);
+      const sideB = await countSide(parseRange(b), by as CompareDimension);
+      const { risen, fallen } = compareSides(sideA, sideB, limit);
+      const empty = sideA.bookmarkCount === 0 || sideB.bookmarkCount === 0;
+
+      return asJsonResult({
+        by,
+        a: {
+          date: sideA.range.dateKey,
+          bookmark_count: sideA.bookmarkCount,
+          missing_dates: sideA.missingDates,
+        },
+        b: {
+          date: sideB.range.dateKey,
+          bookmark_count: sideB.bookmarkCount,
+          missing_dates: sideB.missingDates,
+        },
+        ...(empty
+          ? { note: 'One of the two has nothing in it, so there is nothing to compare.' }
+          : {}),
+        risen,
+        fallen,
       });
     }),
   );

@@ -204,6 +204,33 @@ chosen one marked, and a number still resolves against that list if you change
 your mind. See [ADR 011](docs/ADR/011-best-of-rounds.md) for why this does not
 go through the write API.
 
+### Reading the archive against itself
+
+```bash
+hatebu compare 2023 2026            # what rose, and what fell away
+hatebu compare 2025 2026 --by domains
+hatebu context https://example.com/article   # what it was read alongside
+hatebu timeline --query maplibre --bars      # count and share, per period
+```
+
+`compare` scores each period against the other, so a word common to both says
+nothing and a word rare in both can be the whole of the difference. Every row
+carries both counts and both rates per thousand, because two periods are
+rarely the same size.
+
+```
+More in 2026
+  claude: 18 → 260  (0.2 → 3.8 per 1000)
+  エージェント: 15 → 155  (0.2 → 2.3 per 1000)
+More in 2023
+  chatgpt: 510 → 62  (5.9 → 0.9 per 1000)
+  langchain: 109 → 5  (1.3 → 0.1 per 1000)
+```
+
+`context` answers why a page was bookmarked, by showing what was bookmarked
+around it, grouped into sittings by the quiet between them. Give it a URL or a
+time as `2026-04-10T21:15`.
+
 ### Filling the cache
 
 ```bash
@@ -286,7 +313,7 @@ before pointing a client at it.
 
 ### Tools
 
-Ten, all read-only. Nothing writes to your account, and there is no sync tool:
+Twelve, all read-only. Nothing writes to your account, and there is no sync tool:
 fetching is a decision about somebody else's server, so it stays a command you
 run.
 
@@ -302,6 +329,8 @@ run.
 | `hatebu_timeline` | `by`, `tag`, `domain`, `query`, `from`, `to` |
 | `hatebu_tagged` | `tag` (required), `limit` |
 | `hatebu_random` | `count`, `tag`, `domain`, `query`, `from`, `to` |
+| `hatebu_compare` | `a`, `b` (required), `by` (`words`, `domains`, `tags`), `limit` |
+| `hatebu_context` | `url_or_time` (required), `minutes`, `gap` |
 
 They answer the same numbers as the matching command, down to the defaults, and
 a test holds them to it. What differs is what a model needs and a terminal does
