@@ -37,7 +37,7 @@
     "dotenv": "^17.4.2",
     "lindera-wasm-nodejs-ipadic": "^2.0.0",
     "rss-parser": "^3.13.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",
