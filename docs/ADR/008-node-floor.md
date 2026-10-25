@@ -1,4 +1,4 @@
-# ADR 008: Node 22.12 as the floor
+# ADR 008: Node 22.23.4 as the floor
 
 ## Status
 
@@ -27,7 +27,8 @@ still supported.
 
 ## Decision
 
-`engines.node` is `>=22.12.0`, and CI tests 22, 24 and 26.
+`engines.node` is `^22.23.4 || ^24.22.1 || ^26.12.1`, and CI tests 22, 24
+and 26. The minimum patch versions include the October 2026 security fixes.
 
 TypeScript 7 removed `moduleResolution: node10`, which is what let the old
 build require an ESM package without complaint. `module` is now `nodenext`,

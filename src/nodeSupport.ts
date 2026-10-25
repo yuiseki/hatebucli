@@ -4,9 +4,9 @@
  * 22.12 is where `require()` of an ES module landed, and several of the
  * dependencies ship as ES modules only. Below it the failure is an
  * ERR_REQUIRE_ESM stack trace from inside node_modules, which says nothing
- * about what to do, so bin/hatebu.js checks this before loading anything else.
+ * about what to do. The patch floor includes the October 2026 security release.
  */
-export const MINIMUM_NODE = '22.12.0';
+export const MINIMUM_NODE = '22.23.4';
 
 /** Compares dotted version numbers, ignoring any prerelease suffix. */
 export function isSupportedNodeVersion(

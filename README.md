@@ -24,10 +24,9 @@ npm install && npm run build
 npm link            # puts `hatebu` on your PATH
 ```
 
-Needs Node 22.12 or newer. That is where `require()` of an ES module landed,
-which some of the dependencies now need; Node 20 and earlier went end of life
-on 2026-04-30. Run it on an older one and it says so rather than failing from
-inside `node_modules`.
+Needs Node 22.23.4, 24.22.1, or 26.12.1 or newer within those release lines.
+The security fixes in those releases cover the supported Node.js lines. Run it
+on an older one and it says so rather than failing from inside `node_modules`.
 
 ## Getting started
 
