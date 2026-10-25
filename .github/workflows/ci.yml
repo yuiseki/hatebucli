@@ -15,10 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Node 20 went end of life on 2026-04-30. These are the lines that
-        # are still supported, and the floor in package.json engines is 22.12,
-        # where require() of an ES module landed.
-        node: ['22.x', '24.x', '26.x']
+        # Pin the first releases that include the October 2026 Brotli fix.
+        node: ['22.23.4', '24.22.1', '26.12.1']
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -36,7 +34,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: '24.x'
+          node-version: '24.22.1'
           cache: npm
       - run: npm ci
       - name: Pack the published tarball
